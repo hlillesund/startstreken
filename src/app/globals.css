@@ -1,0 +1,464 @@
+@import "tailwindcss";
+
+/* =====================
+   BASE
+===================== */
+:root {
+  --background: #728c69;
+  --foreground: #000000;
+  --topnav-h: 75px;
+  --journey-speed: 1.5; /* 1 = normal, høyere = saktere */
+}
+
+body {
+  margin: 0;
+  background: white;
+  color: var(--foreground);
+}
+.hero-content {
+  padding-top: clamp(140px, 22vh, 280px);
+}
+
+
+
+/* =====================
+   TOPNAV (STABLE)
+===================== */
+.topnav {
+  position: fixed;
+  inset: 0 0 auto 0;
+  height: var(--topnav-h);
+  z-index: 100;
+
+  background: rgba(255, 255, 255, 0.001);
+  transition: background 200ms ease, box-shadow 200ms ease;
+}
+
+.topnav.scrolled {
+  background: #728c69;
+}
+
+.topnav-bar {
+  position: relative;
+  display: flex;
+  align-items: center;
+  height: var(--topnav-h);
+}
+
+/* =====================
+   LOGO (VIEWPORT-LOCKED)
+===================== */
+.topnav-logo {
+  position: absolute;
+  left: 24px;
+  display: flex;
+  align-items: center;
+}
+
+.topnav-logo img {
+  height: 64px; /* ← CHANGE FREELY */
+  width: auto;
+}
+
+/* =====================
+   CENTERED NAV CONTAINER
+===================== */
+.topnav-container {
+  max-width: 1200px;
+  width: 100%;
+  margin: 0 auto;
+  padding: 0 24px;
+
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+/* =====================
+   NAV LINKS
+===================== */
+.topnav-links {
+  display: flex;
+  gap: 32px;
+  justify-content: center;
+  align-items: center;
+  flex: 1;
+}
+
+.topnav-link {
+  text-decoration: none;
+  color: white;
+  font-size: 25px;
+  font-weight: 500;
+  opacity: 0.9;
+}
+
+.topnav-link:hover {
+  opacity: 1;
+}
+
+
+/* =====================
+   HERO RESPONSIVE SAFETY
+   Prevent overlap on small screens
+===================== */
+.hero {
+  /* mobile: let content breathe; desktop: you still get your cinematic feel */
+  min-height: 70vh;
+}
+
+@media (min-width: 768px) {
+  .hero {
+    min-height: 60vh;
+  }
+}
+@media (max-width: 768px) {
+  .searchInput {
+    font-size: 16px;
+  }
+}
+
+/* =====================
+   ROAD / JOURNEY ANIMATION
+===================== */
+
+/* Journey wrapper height becomes responsive (instead of fixed 220px everywhere) */
+.journey-wrap {
+  height: 220px;
+  width: 100%;
+}
+
+@media (max-width: 640px) {
+  .journey-wrap {
+    height: 165px;
+  }
+}
+
+@media (min-width: 641px) and (max-width: 1023px) {
+  .journey-wrap {
+    height: 195px;
+  }
+}
+
+/* Labels row position becomes responsive (replaces top-[70px] hard dependency) */
+.journey-label-row {
+  top: 70px;
+}
+
+@media (max-width: 640px) {
+  .journey-label-row {
+    top: 54px;
+  }
+}
+
+.road-draw {
+  stroke-dasharray: 1000;
+  stroke-dashoffset: 1000;
+  animation: draw-road calc(2.6s * var(--journey-speed)) ease-out forwards;
+}
+
+.mountain-draw path {
+  stroke-dasharray: 1000;
+  stroke-dashoffset: 1000;
+  animation: draw-mountain calc(1.4s * var(--journey-speed)) ease-out forwards;
+  animation-delay: calc(2.6s * var(--journey-speed));
+}
+
+@keyframes draw-road {
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+@keyframes draw-mountain {
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+.road-button {
+  opacity: 0;
+  transform: translate(-50%, 16px) scale(0.9);
+  animation: pop-in calc(0.35s * var(--journey-speed)) ease forwards;
+  animation-play-state: paused;
+}
+
+.pop-in {
+  animation-play-state: running;
+}
+
+@keyframes pop-in {
+  to {
+    opacity: 1;
+    transform: translate(-50%, 0) scale(1);
+  }
+}
+
+/* =====================
+   ACTION / PILL
+===================== */
+.topnav-pill-outline {
+  padding: 8px 18px;
+  border-radius: 9999px;
+  border: 1.5px solid rgba(255, 255, 255, 0.85);
+  color: white;
+  text-decoration: none;
+  font-size: 25px;
+  font-weight: 500;
+  opacity: 0.9;
+}
+
+.topnav-pill-outline:hover {
+  opacity: 1;
+}
+
+/* =====================
+   MOBILE MENU
+===================== */
+.mobile-menu-button {
+  position: absolute;
+  right: 24px;
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 1001;
+  width: 32px;
+  height: 24px;
+
+  display: none;
+  flex-direction: column;
+  justify-content: space-between;
+
+  background: none;
+  border: none;
+  cursor: pointer;
+}
+
+.mobile-menu-button span {
+  height: 2px;
+  width: 100%;
+  background: white;
+  border-radius: 2px;
+  transition: transform 250ms ease, opacity 200ms ease;
+}
+
+.mobile-menu-button.open span:nth-child(1) {
+  transform: translateY(11px) rotate(45deg);
+}
+
+.mobile-menu-button.open span:nth-child(2) {
+  opacity: 0;
+}
+
+.mobile-menu-button.open span:nth-child(3) {
+  transform: translateY(-11px) rotate(-45deg);
+}
+
+.mobile-menu {
+  position: fixed;
+  inset: 0;
+  z-index: 999;
+
+  background: #728c69;
+
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: left;
+  gap: 75px;
+
+  transform: translateX(100%);
+  transition: transform 320ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.mobile-menu.open {
+  transform: translateX(0);
+}
+
+.mobile-menu a {
+  color: rgb(255, 254, 254);
+  font-size: 1.8rem;
+  font-weight: 500;
+  text-decoration:none;
+  opacity: 0;
+  transform: translateX(20px);
+  animation: menuItemIn 300ms ease forwards;
+  margin-left: 100px;
+}
+
+.mobile-menu a:nth-child(1) { animation-delay: 80ms; }
+.mobile-menu a:nth-child(2) { animation-delay: 140ms; }
+.mobile-menu a:nth-child(3) { animation-delay: 200ms; }
+.mobile-menu a:nth-child(4) { animation-delay: 260ms; }
+.mobile-menu a:nth-child(5) { animation-delay: 320ms; }
+
+@keyframes menuItemIn {
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes menuFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(-8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.mobile-menu a:hover {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+/* =====================
+   BREAKPOINT
+===================== */
+@media (max-width: 768px) {
+  .desktop-nav {
+    display: none;
+  }
+
+  .mobile-menu-button {
+    display: flex;
+  }
+
+  .topnav-logo {
+    margin-right: 0;
+  }
+
+  .topnav-logo img {
+    height: 64px;
+  }
+
+  /* REMOVED: .searchBox { margin-left: 45px; }
+     This caused inconsistent placement between devices.
+     SearchBox is now centered by layout (mx-auto / max-width).
+  */
+}
+
+/* =====================
+   SEARCH BOX
+===================== */
+.searchBox {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+
+  width: 100%;
+  max-width: 520px; /* allow it to scale nicely on larger phones */
+  background: #2f3640;
+  border-radius: 9999px;
+  padding: 4px;
+}
+
+/* =====================
+   SOLID CARD (TOOLS / CALCULATORS)
+===================== */
+.solid-card {
+  background: #ffffff;
+  color: #000000;
+
+  border-radius: 1rem;
+  border: 1px solid rgba(0, 0, 0, 0.08);
+
+  box-shadow:
+    0 12px 30px rgba(0, 0, 0, 0.18);
+
+}
+/* =====================
+   MOBILE SEARCH (SLIDE-IN) - CSS FIX
+===================== */
+.mobile-search-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  /* Use dvh (dynamic viewport height) if possible to handle iOS bars better */
+  height: 100dvh; 
+  z-index: 9999;
+  background: white;
+  display: flex;
+  flex-direction: column;
+  transform: translate3d(0, 0, 0);
+  
+}
+
+@media (max-width: 360px) {
+  /* iPhone SE territory */
+  .searchBox {
+    max-width: 300px;
+  }
+}
+
+.searchInput {
+  flex: 1;
+  border: none;
+  background: none;
+  outline: none;
+  color: white;
+  font-size: 16px;
+  padding: 12px 16px;
+  min-width: 0;
+}
+
+.searchInput::placeholder {
+  color: rgba(255, 255, 255, 0.6);
+}
+
+.searchButton {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  border: none;
+  cursor: pointer;
+
+  background: #728c69;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.searchButton svg path {
+  stroke: white;
+}
+
+/* =====================
+   SEARCH BOX – LIGHT
+===================== */
+.searchBox--light {
+  background: #ffffff;
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.25);
+}
+
+.searchInput--light {
+  color: #728c69;
+}
+
+.searchInput--light::placeholder {
+  color: #050505;
+}
+
+.searchButton--light {
+  background: #728c69;
+}
+
+/* =====================
+   LIQUID GLASS CARD
+===================== */
+.glass-card {
+  background: rgba(255, 255, 255, 0.12);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+
+  backdrop-filter: blur(18px) saturate(140%);
+  -webkit-backdrop-filter: blur(18px) saturate(140%);
+
+  box-shadow:
+    0 20px 40px rgba(0, 0, 0, 0.25),
+    inset 0 1px 0 rgba(255, 255, 255, 0.25);
+
+  border-radius: 1rem;
+}
+

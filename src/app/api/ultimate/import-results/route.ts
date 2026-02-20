@@ -1,6 +1,6 @@
 import { prisma } from "@/lib/prisma";
-import { fetchUltimateResultsRaw } from "@/lib/ultimate";
-import { parseUltimateResults } from "@/lib/ultimate-parse";
+import { fetchUltimateResultsAllRaw } from "@/lib/ultimate"; // <- bruker paging
+import { parseUltimateResultsFromPages } from "@/lib/ultimate-parse";
 import { resolveAthleteForIdentity } from "@/lib/athlete-merge";
 import crypto from "crypto";
 
@@ -14,7 +14,9 @@ function timeToMs(time: string): number | null {
   const parts = t.split(":").map(Number);
   if (parts.some((n) => Number.isNaN(n))) return null;
 
-  let h = 0, m = 0, s = 0;
+  let h = 0,
+    m = 0,
+    s = 0;
   if (parts.length === 3) [h, m, s] = parts;
   else if (parts.length === 2) [m, s] = parts;
   else return null;
@@ -34,15 +36,14 @@ export async function POST(req: Request) {
   const source = await prisma.sources.findUnique({ where: { slug: "ultimate" } });
   if (!source) return Response.json({ error: "Missing sources row for ultimate" }, { status: 500 });
 
-  const raw = await fetchUltimateResultsRaw(eventId, distance);
+  // 1) Hent alle pages (Ultimate capper typisk 1000 per kall)
+  const pages = await fetchUltimateResultsAllRaw(eventId, distance);
+  const rows = parseUltimateResultsFromPages(pages);
 
-  // Parse rows
-  const rows = parseUltimateResults(raw);
-
-  console.log(`[ultimate] event=${eventId} distance=${distance} parsedRows=${rows.length}`);
+  console.log(`[ultimate] event=${eventId} distance=${distance} pages=${pages.length} parsedRows=${rows.length}`);
   console.log(`[ultimate] firstRow=`, rows[0] ?? null);
 
-  // Event + race (deterministisk)
+  // 2) Event + race (deterministisk)
   const sourceEventId = String(eventId);
   const eventRow = await prisma.events.upsert({
     where: { source_id_source_event_id: { source_id: source.id, source_event_id: sourceEventId } },
@@ -70,56 +71,88 @@ export async function POST(req: Request) {
 
   let imported = 0;
   let linked = 0;
+  let skipped = 0;
+  let failed = 0;
 
-  for (const r of rows) {
-    if (!r.name || !r.timeStr) continue;
+  for (let i = 0; i < rows.length; i++) {
+    const r = rows[i];
 
-    const timeMs = timeToMs(r.timeStr);
-    if (!timeMs) continue;
+    try {
+      if (!r.name || !r.timeStr) {
+        skipped++;
+        continue;
+      }
 
-    // Ultimate har ikke alltid global runner-id i denne tabellen.
-    // Vi lager syntetisk identity-key (stabil nok for merge, men ikke perfekt).
-    const sourcePersonId = `synt:${shortHash(`${r.name}|${r.club ?? ""}|${r.category ?? ""}`)}`;
+      const timeMs = timeToMs(r.timeStr);
+      if (!timeMs) {
+        skipped++;
+        continue;
+      }
 
-    const resolved = await resolveAthleteForIdentity({
-      sourceSlug: "ultimate",
-      sourcePersonId,
-      displayName: r.name,
-      gender: null,      // kan utledes fra category senere hvis du vil
-      birthYear: null,   // kan utledes hvis category inneholder år
-      club: r.club,
-      payload: r,
-    });
+      // syntetisk identity-key (stabil nok for merge, men ikke perfekt)
+      const sourcePersonId = `synt:${shortHash(`${r.name}|${r.club ?? ""}|${r.category ?? ""}`)}`;
 
-    if (resolved.linked) linked++;
+      const resolved = await resolveAthleteForIdentity({
+        sourceSlug: "ultimate",
+        sourcePersonId,
+        displayName: r.name,
+        gender: null, // kan utlede senere
+        birthYear: null,
+        club: r.club,
+        payload: r,
+      });
 
-    await prisma.results.upsert({
-      where: {
-        race_id_athlete_id_time_ms: {
+      if (resolved.linked) linked++;
+
+      await prisma.results.upsert({
+        where: {
+          race_id_athlete_id_time_ms: {
+            race_id: raceRow.id,
+            athlete_id: resolved.athleteId,
+            time_ms: timeMs,
+          },
+        },
+        update: {
+          rank_overall: r.rank,
+          bib: r.bib,
+          club: r.club,
+          raw: r as any,
+        },
+        create: {
           race_id: raceRow.id,
           athlete_id: resolved.athleteId,
           time_ms: timeMs,
+          rank_overall: r.rank,
+          bib: r.bib,
+          club: r.club,
+          raw: r as any,
         },
-      },
-      update: {
-        rank_overall: r.rank,
-        bib: r.bib,
-        club: r.club,
-        raw: r as any,
-      },
-      create: {
-        race_id: raceRow.id,
-        athlete_id: resolved.athleteId,
-        time_ms: timeMs,
-        rank_overall: r.rank,
-        bib: r.bib,
-        club: r.club,
-        raw: r as any,
-      },
-    });
+      });
 
-    imported++;
+      imported++;
+    } catch (e) {
+      failed++;
+      if (failed <= 5) {
+        console.error("[ultimate] row failed:", r, e);
+      }
+    }
+
+    if (i > 0 && i % 500 === 0) {
+      console.log(
+        `[ultimate] progress ${i}/${rows.length} imported=${imported} skipped=${skipped} failed=${failed}`
+      );
+    }
   }
 
-  return Response.json({ ok: true, eventId, distance, parsed: rows.length, imported, linked });
+  return Response.json({
+    ok: true,
+    eventId,
+    distance,
+    pages: pages.length,
+    parsed: rows.length,
+    imported,
+    linked,
+    skipped,
+    failed,
+  });
 }

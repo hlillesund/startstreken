@@ -6,9 +6,9 @@ export async function GET(req: Request) {
   if (!q) return Response.json([]);
 
   const rows = await prisma.$queryRaw<
-    { id: string; display_name: string }[]
+    { id: string; display_name: string; birth_year: number | null }[]
   >`
-    select id, display_name
+    select id, display_name, birth_year
     from public.athletes
     where display_name_norm % ${q}
     order by similarity(display_name_norm, ${q}) desc

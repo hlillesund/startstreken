@@ -603,22 +603,24 @@ model import_runs {
 }
 
 model results {
-  id               String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  race_id          String   @db.Uuid
-  athlete_id       String   @db.Uuid
-  time_ms          Int
-  rank_overall     Int?
-  bib              String?
-  club             String?
-  source_result_id String?
-  raw              Json?
-  created_at       DateTime @default(now()) @db.Timestamptz(6)
-  athletes         athletes @relation(fields: [athlete_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
-  races            races    @relation(fields: [race_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  id                String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  race_id           String   @db.Uuid
+  athlete_id        String   @db.Uuid
+  time_ms           Int
+  rank_overall      Int?
+  bib               String?
+  club              String?
+  source_result_id  String?
+  raw               Json?
+  created_at        DateTime @default(now()) @db.Timestamptz(6)
+  distance_category String?
+  athletes          athletes @relation(fields: [athlete_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  races             races    @relation(fields: [race_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
 
   @@unique([race_id, athlete_id, time_ms])
   @@index([athlete_id], map: "results_athlete_idx")
   @@index([race_id, time_ms], map: "results_race_time_idx")
+  @@index([distance_category])
   @@schema("public")
 }
 

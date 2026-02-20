@@ -31,8 +31,8 @@ export default function TopNav() {
 
           {/* DESKTOP NAV */}
           <nav className="topnav-links desktop-nav">
-            <Link className="topnav-link" href="/events">Løp</Link>
-            <Link className="topnav-link" href="/shoes">Skoguide</Link>
+
+            <Link className="topnav-link" href="/utovere">Utøversøk</Link>
             <Link className="topnav-link" href="/calendar">Kalender</Link>
             <Link className="topnav-link" href="/news">Nyheter</Link>
             <Link className="topnav-pill-outline" href="/account">

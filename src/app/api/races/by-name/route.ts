@@ -19,12 +19,7 @@ export async function GET(req: NextRequest) {
   select: {
     id: true,
     name: true,
-    race_date: true,
-    distance_km: true,
-    race_type: true,
-    logo_url: true,
   },
-  orderBy: { race_date: "asc" },
   take: 6,
 });
 

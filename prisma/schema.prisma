@@ -21,6 +21,31 @@ model audit_log_entries {
   @@schema("auth")
 }
 
+model import_presets {
+  id String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+
+  source_id       String  @db.Uuid
+  source_event_id String
+  source_race_id  String? // nullable, fordi noen kilder har event-level uten race-id
+
+  event_name String?
+  start_date DateTime? @db.Date
+  location   String?
+
+  race_name         String?
+  distance_m        Int?
+  distance_category String? // "5K"|"10K"|"HM"|"M"|"OTHER"
+
+  created_at DateTime @default(now()) @db.Timestamptz(6)
+  updated_at DateTime @default(now()) @db.Timestamptz(6)
+
+  sources sources @relation(fields: [source_id], references: [id], onDelete: Cascade)
+
+  @@unique([source_id, source_event_id, source_race_id])
+  @@index([source_id, source_event_id], map: "import_presets_event_idx")
+  @@schema("public")
+}
+
 /// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
 /// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
 model flow_state {
@@ -621,6 +646,7 @@ model results {
   @@index([athlete_id], map: "results_athlete_idx")
   @@index([race_id, time_ms], map: "results_race_time_idx")
   @@index([distance_category])
+  @@index([athlete_id, distance_category, race_id], map: "results_fast_profile_idx")
   @@schema("public")
 }
 
@@ -632,6 +658,7 @@ model sources {
   athlete_identities athlete_identities[]
   events             events[]
   import_runs        import_runs[]
+  import_presets     import_presets[]
 
   @@schema("public")
 }

@@ -86,11 +86,7 @@ function TrendChart({ rows }: { rows: AthleteResultRow[] }) {
   }, [rows]);
 
   if (data.length < 2) {
-    return (
-      <div className="text-sm text-white/70">
-        Ikke nok datapunkter til å vise graf.
-      </div>
-    );
+    return <div className="text-sm text-white/70">Ikke nok datapunkter til å vise graf.</div>;
   }
 
   const W = 860;
@@ -111,12 +107,10 @@ function TrendChart({ rows }: { rows: AthleteResultRow[] }) {
     return { x, y, row };
   });
 
-  // line path
   const path = points
     .map((p, i) => `${i === 0 ? "M" : "L"} ${p.x.toFixed(1)} ${p.y.toFixed(1)}`)
     .join(" ");
 
-  // axes ticks
   const yTicks = 5;
   const yTickVals = Array.from({ length: yTicks }, (_, i) => {
     const t = i / (yTicks - 1); // 0..1
@@ -136,15 +130,9 @@ function TrendChart({ rows }: { rows: AthleteResultRow[] }) {
 
   return (
     <div className="relative">
-      <svg
-        ref={svgRef}
-        viewBox={`0 0 ${W} ${H}`}
-        className="w-full select-none"
-      >
-        {/* grid + axes */}
+      <svg ref={svgRef} viewBox={`0 0 ${W} ${H}`} className="w-full select-none">
         <rect x={0} y={0} width={W} height={H} fill="transparent" />
 
-        {/* horizontal grid + y labels */}
         {yTickVals.map((t, i) => (
           <g key={i}>
             <line
@@ -155,18 +143,12 @@ function TrendChart({ rows }: { rows: AthleteResultRow[] }) {
               stroke="rgba(255,255,255,0.10)"
               strokeWidth={1}
             />
-            <text
-              x={10}
-              y={t.y + 4}
-              fill="rgba(255,255,255,0.75)"
-              fontSize={11}
-            >
+            <text x={10} y={t.y + 4} fill="rgba(255,255,255,0.75)" fontSize={11}>
               {formatTime(t.val)}
             </text>
           </g>
         ))}
 
-        {/* x axis line */}
         <line
           x1={P}
           x2={W - P}
@@ -176,7 +158,6 @@ function TrendChart({ rows }: { rows: AthleteResultRow[] }) {
           strokeWidth={1}
         />
 
-        {/* x ticks */}
         {xTicks.map((t, i) => (
           <g key={i}>
             <line
@@ -199,15 +180,12 @@ function TrendChart({ rows }: { rows: AthleteResultRow[] }) {
           </g>
         ))}
 
-        {/* line */}
         <path d={path} fill="none" stroke={ACCENT_GREEN} strokeWidth={2.5} />
 
-        {/* points */}
         {points.map((p, i) => {
           const isHover = hoverIndex === i;
           return (
             <g key={i}>
-              {/* outer ring */}
               <circle
                 cx={p.x}
                 cy={p.y}
@@ -219,7 +197,6 @@ function TrendChart({ rows }: { rows: AthleteResultRow[] }) {
                 onMouseLeave={() => setHoverIndex(null)}
                 style={{ cursor: "pointer" }}
               />
-              {/* inner dot */}
               <circle
                 cx={p.x}
                 cy={p.y}
@@ -231,22 +208,18 @@ function TrendChart({ rows }: { rows: AthleteResultRow[] }) {
           );
         })}
 
-        {/* hover guide */}
         {hover && (
-          <>
-            <line
-              x1={hover.x}
-              x2={hover.x}
-              y1={P}
-              y2={H - P}
-              stroke="rgba(34,197,94,0.25)"
-              strokeWidth={1}
-            />
-          </>
+          <line
+            x1={hover.x}
+            x2={hover.x}
+            y1={P}
+            y2={H - P}
+            stroke="rgba(34,197,94,0.25)"
+            strokeWidth={1}
+          />
         )}
       </svg>
 
-      {/* tooltip */}
       {hover && (
         <div
           className="absolute"
@@ -261,7 +234,7 @@ function TrendChart({ rows }: { rows: AthleteResultRow[] }) {
             <div className="text-white/80">
               {formatDate(hover.row.start_date)} • {formatTime(hover.row.time_ms)}
             </div>
-            <div className="text-white/60 text-xs mt-0.5">{hover.row.race_name}</div>
+            <div className="mt-0.5 text-xs text-white/60">{hover.row.race_name}</div>
           </div>
         </div>
       )}
@@ -272,6 +245,8 @@ function TrendChart({ rows }: { rows: AthleteResultRow[] }) {
 /* ---------- PAGE ---------- */
 
 export default function UtoverePage() {
+  const [refreshing, setRefreshing] = useState(false);
+
   const [q, setQ] = useState("");
   const [hits, setHits] = useState<AthleteHit[]>([]);
   const [loadingHits, setLoadingHits] = useState(false);
@@ -319,16 +294,23 @@ export default function UtoverePage() {
     setLoadingResults(true);
     setResults([]);
 
-    // background refresh (don’t await)
-    fetch(`/api/athletes/${a.id}/refresh-eqtiming`, { method: "POST" }).catch(() => {});
-
-    try {
-      const res = await fetch(`/api/athletes/${a.id}/results`);
+    const loadNow = async () => {
+      const res = await fetch(`/api/athletes/${a.id}/results`, { cache: "no-store" });
       const data = await res.json();
       setResults(Array.isArray(data) ? data : []);
+    };
+
+    try {
+      await loadNow();
     } finally {
       setLoadingResults(false);
     }
+
+    // refresh i bakgrunnen -> hent på nytt etterpå
+    setRefreshing(true);
+    fetch(`/api/athletes/${a.id}/refresh-eqtiming`, { method: "POST" })
+      .then(() => loadNow())
+      .finally(() => setRefreshing(false));
   }
 
   const club = useMemo(() => mostCommon(results.map((r) => r.club)), [results]);
@@ -346,7 +328,6 @@ export default function UtoverePage() {
         return sortDir === "asc" ? v : -v;
       }
 
-      // date sort (string "YYYY-MM-DD" sort works lexicographically)
       const da = a.start_date ?? "";
       const db = b.start_date ?? "";
       const v = da.localeCompare(db);
@@ -384,7 +365,6 @@ export default function UtoverePage() {
 
         {/* MAIN WHITE CARD */}
         <div className="mx-auto mb-8 mt-4 max-w-4xl rounded-2xl bg-white p-6 sm:p-12 text-black shadow-2xl">
-          {/* Treffliste */}
           {!selected && hits.length > 0 && (
             <div className="rounded-2xl border p-2">
               {hits.map((h) => (
@@ -409,13 +389,14 @@ export default function UtoverePage() {
           {selected && (
             <>
               <button
-                className="mb-4 text-sm underline text-zinc-700 hover:text-black"
+                className="mb-4 text-sm text-zinc-700 underline hover:text-black"
                 onClick={() => {
                   setSelected(null);
                   setResults([]);
                   setFilter("HM");
                   setSortBy("date");
                   setSortDir("desc");
+                  setRefreshing(false);
                 }}
               >
                 ← Tilbake til søk
@@ -436,8 +417,10 @@ export default function UtoverePage() {
                   <button
                     key={f.key}
                     onClick={() => setFilter(f.key)}
-                    className={`rounded-full px-4 py-2 text-sm font-medium border transition ${
-                      filter === f.key ? "bg-black text-white border-black" : "bg-white text-black border-black/15 hover:bg-black/5"
+                    className={`rounded-full border px-4 py-2 text-sm font-medium transition ${
+                      filter === f.key
+                        ? "border-black bg-black text-white"
+                        : "border-black/15 bg-white text-black hover:bg-black/5"
                     }`}
                   >
                     {f.label}
@@ -447,77 +430,124 @@ export default function UtoverePage() {
 
               {/* Sort */}
               <div className="mt-4 flex flex-wrap items-center gap-2 text-sm">
-                <span className="text-zinc-600 mr-2">Sorter:</span>
+                <span className="mr-2 text-zinc-600">Sorter:</span>
                 <button
                   onClick={() => setSortBy("date")}
-                  className={`rounded-full px-3 py-1.5 border ${
-                    sortBy === "date" ? "bg-black text-white border-black" : "border-black/15 hover:bg-black/5"
+                  className={`rounded-full border px-3 py-1.5 ${
+                    sortBy === "date" ? "border-black bg-black text-white" : "border-black/15 hover:bg-black/5"
                   }`}
                 >
                   Dato
                 </button>
                 <button
                   onClick={() => setSortBy("time")}
-                  className={`rounded-full px-3 py-1.5 border ${
-                    sortBy === "time" ? "bg-black text-white border-black" : "border-black/15 hover:bg-black/5"
+                  className={`rounded-full border px-3 py-1.5 ${
+                    sortBy === "time" ? "border-black bg-black text-white" : "border-black/15 hover:bg-black/5"
                   }`}
                 >
                   Tid
                 </button>
                 <button
                   onClick={() => setSortDir((d) => (d === "asc" ? "desc" : "asc"))}
-                  className="rounded-full px-3 py-1.5 border border-black/15 hover:bg-black/5"
+                  className="rounded-full border border-black/15 px-3 py-1.5 hover:bg-black/5"
                   title="Bytt rekkefølge"
                 >
                   {sortDir === "asc" ? "↑" : "↓"}
                 </button>
               </div>
 
-              {loadingResults && <div className="mt-4 text-sm text-zinc-600">Laster resultater…</div>}
-
-              {!loadingResults && sorted.length === 0 && (
-                <div className="mt-6 rounded-2xl border border-black/10 p-6 text-sm text-zinc-600">
-                  Ingen resultater i denne kategorien.
+              {/* ✅ Refresh status */}
+              {selected && refreshing && (
+                <div className="mt-3 inline-flex items-center gap-2 rounded-lg border border-black/10 bg-black/5 px-3 py-1.5 text-xs text-zinc-600">
+                  <span className="animate-spin">⟳</span>
+                  Oppdaterer resultater fra EQTiming…
                 </div>
               )}
 
+              {loadingResults && <div className="mt-4 text-sm text-zinc-600">Laster resultater…</div>}
+
+              {/* ✅ Ikke vis "Ingen resultater" mens refresh pågår */}
+              {!loadingResults && sorted.length === 0 && (
+                refreshing ? (
+                  <div className="mt-6 rounded-2xl border border-black/10 bg-black/5 p-6 text-sm text-zinc-600">
+                    Laster inn resultater…
+                  </div>
+                ) : (
+                  <div className="mt-6 rounded-2xl border border-white/15 bg-black/35 p-6 text-sm text-white/70 shadow-2xl backdrop-blur-xl">
+                    Ingen resultater i denne kategorien.
+                  </div>
+                )
+              )}
+
               {!loadingResults && sorted.length > 0 && (
-                <div className="mt-6 overflow-hidden rounded-2xl border">
-                  <div className="grid grid-cols-12 gap-0 border-b bg-black/5 px-4 py-2 text-xs font-semibold">
-                    <div className="col-span-3">Dato</div>
-                    <div className="col-span-7">Løp</div>
-                    <div className="col-span-2 text-right">Tid</div>
+                <div className="mt-6">
+                  <div className="overflow-hidden rounded-2xl border border-white/15 bg-black/40 shadow-2xl backdrop-blur-xl">
+                    <div className="sticky top-0 z-10 grid grid-cols-12 gap-0 border-b border-white/10 bg-black/40 px-5 py-3 text-[11px] font-semibold uppercase tracking-wide text-white/70 backdrop-blur-xl">
+                      <div className="col-span-3">Dato</div>
+                      <div className="col-span-7">Løp</div>
+                      <div className="col-span-2 text-right">Tid</div>
+                    </div>
+
+                    <div className="divide-y divide-white/10">
+                      {sorted.map((r, idx) => (
+                        <div
+                          key={idx}
+                          className="group grid grid-cols-12 gap-0 bg-black/40 px-5 py-4 text-white transition hover:bg-black/50"
+                        >
+                          <div className="col-span-3 text-sm text-white/70">{formatDate(r.start_date)}</div>
+
+                          <div className="col-span-7">
+                            <div className="flex items-start justify-between gap-3">
+                              <div className="min-w-0">
+                                <div className="truncate text-sm font-medium text-white">{r.event_name}</div>
+
+                                <div className="mt-0.5 flex flex-wrap items-center gap-2">
+                                  <div className="truncate text-xs text-white/60">{r.race_name}</div>
+
+                                  {r.distance_category && (
+                                    <span className="rounded-full border border-white/15 bg-white/5 px-2 py-0.5 text-[11px] font-semibold text-white/70">
+                                      {r.distance_category}
+                                    </span>
+                                  )}
+
+                                  {r.club && (
+                                    <span className="truncate text-[11px] text-white/50">• {r.club}</span>
+                                  )}
+                                </div>
+                              </div>
+
+                              <div className="hidden shrink-0 text-white/35 transition group-hover:text-white/60 sm:block">
+                                →
+                              </div>
+                            </div>
+                          </div>
+
+                          <div className="col-span-2 text-right">
+                            <div className="text-sm font-semibold text-white">{formatTime(r.time_ms)}</div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
                   </div>
 
-                  {sorted.map((r, idx) => (
-                    <div key={idx} className="grid grid-cols-12 gap-0 border-b px-4 py-3 text-sm last:border-b-0">
-                      <div className="col-span-3 opacity-80">{formatDate(r.start_date)}</div>
-                      <div className="col-span-7">
-                        <div>{r.event_name}</div>
-                        <div className="text-xs text-zinc-500">{r.race_name}</div>
-                      </div>
-                      <div className="col-span-2 text-right font-medium">{formatTime(r.time_ms)}</div>
-                    </div>
-                  ))}
+                  <div className="mt-2 text-xs text-white/55">
+                    Viser {sorted.length} resultat{sorted.length === 1 ? "" : "er"} i{" "}
+                    {FILTERS.find((f) => f.key === filter)?.label}.
+                  </div>
                 </div>
               )}
             </>
           )}
         </div>
 
-        {/* CHART CARD (dark glass) */}
         {showChart && (
-          <div className="mx-auto mb-32 max-w-4xl rounded-2xl border border-white/15 bg-black/35 p-6 sm:p-8 shadow-2xl backdrop-blur-xl">
+          <div className="mx-auto mb-32 max-w-4xl rounded-2xl border border-white/15 bg-black/35 p-6 shadow-2xl backdrop-blur-xl sm:p-8">
             <div className="mb-4 flex items-baseline justify-between gap-4">
               <div className="text-white">
                 <div className="text-sm text-white/70">Utvikling</div>
-                <div className="text-lg font-semibold">
-                  {FILTERS.find((f) => f.key === filter)?.label}
-                </div>
+                <div className="text-lg font-semibold">{FILTERS.find((f) => f.key === filter)?.label}</div>
               </div>
-              <div className="text-xs text-white/60">
-                Hover på punkt for detaljer
-              </div>
+              <div className="text-xs text-white/60">Hover på punkt for detaljer</div>
             </div>
 
             <TrendChart rows={sorted} />

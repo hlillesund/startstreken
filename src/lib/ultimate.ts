@@ -2,27 +2,36 @@ import { parseUltimateResults } from "@/lib/ultimate-parse";
 
 /**
  * Standard results-feed (som du har nå)
+ * ✅ distance kan være null (best-effort). Hvis Ultimate krever distance,
+ * vil dette bare gi 0 rows.
  */
 export async function fetchUltimateResultsRaw(
   eventId: number,
-  distance: number,
+  distance: number | null,
   language = "us",
   startRecord = 0
 ) {
   const url =
     `https://live.ultimate.dk/desktop/front/data.php?` +
-    `eventid=${eventId}&mode=results&distance=${distance}&category=&language=${language}` +
+    `eventid=${eventId}` +
+    `&mode=results` +
+    `&distance=${distance ?? ""}` +
+    `&category=` +
+    `&language=${language}` +
     `&results_startrecord=${startRecord}`;
 
-  const res = await fetch(url, { headers: { Accept: "*/*" }, cache: "no-store" });
-  if (!res.ok) throw new Error(`Ultimate failed: ${res.status} ${res.statusText}`);
+  const res = await fetch(url, {
+    headers: { Accept: "*/*" },
+    cache: "no-store",
+  });
 
+  if (!res.ok) throw new Error(`Ultimate failed: ${res.status} ${res.statusText}`);
   return res.text();
 }
 
 export async function fetchUltimateResultsAllRaw(
   eventId: number,
-  distance: number,
+  distance: number | null,
   language = "us",
   pageSize = 1000,
   maxPages = 200
@@ -40,15 +49,15 @@ export async function fetchUltimateResultsAllRaw(
 
     const first = rows[0];
     const last = rows[rows.length - 1];
-    const sig = `${first?.bib ?? ""}|${first?.name ?? ""}|${first?.timeStr ?? ""}__${last?.bib ?? ""}|${last?.name ?? ""}|${last?.timeStr ?? ""}`;
+    const sig =
+      `${first?.bib ?? ""}|${first?.name ?? ""}|${first?.timeStr ?? ""}` +
+      `__${last?.bib ?? ""}|${last?.name ?? ""}|${last?.timeStr ?? ""}`;
 
-    // hvis vi får samme side igjen => paging har stoppet / ingen flere rader
     if (prevSig && sig === prevSig) break;
     prevSig = sig;
 
     pages.push(raw);
 
-    // ofte siste side, men sig-checken er hovedstopper uansett
     if (rows.length < pageSize) break;
   }
 
@@ -57,11 +66,6 @@ export async function fetchUltimateResultsAllRaw(
 
 /**
  * ✅ Advanced search: kun norske (NOR), valgfritt distansefilter.
- *
- * NOTE:
- * - Ultimate advanced search bruker ofte samme "list_results" innerHTML som parseUltimateResults forventer.
- * - Paginering: mange events støtter results_startrecord også i search-mode.
- *   Hvis ditt event krever noe annet, bytt parameternavn her (se kommentar under).
  */
 export async function fetchUltimateNorSearchRaw(
   eventId: number,
@@ -91,7 +95,6 @@ export async function fetchUltimateNorSearchRaw(
 
   const res = await fetch(url, { headers: { Accept: "*/*" }, cache: "no-store" });
   if (!res.ok) throw new Error(`Ultimate NOR search failed: ${res.status} ${res.statusText}`);
-
   return res.text();
 }
 
@@ -115,7 +118,9 @@ export async function fetchUltimateNorSearchAllRaw(
 
     const first = rows[0];
     const last = rows[rows.length - 1];
-    const sig = `${first?.bib ?? ""}|${first?.name ?? ""}|${first?.timeStr ?? ""}__${last?.bib ?? ""}|${last?.name ?? ""}|${last?.timeStr ?? ""}`;
+    const sig =
+      `${first?.bib ?? ""}|${first?.name ?? ""}|${first?.timeStr ?? ""}` +
+      `__${last?.bib ?? ""}|${last?.name ?? ""}|${last?.timeStr ?? ""}`;
 
     if (prevSig && sig === prevSig) break;
     prevSig = sig;
@@ -129,13 +134,10 @@ export async function fetchUltimateNorSearchAllRaw(
 }
 
 /**
- * Hvis du oppdager at advanced-search ikke pager med results_startrecord:
- * - prøv å bytte siste querystring fra:
- *    &results_startrecord=${startRecord}
- *   til:
+ * Hvis advanced-search ikke pager med results_startrecord:
+ * - prøv:
  *    &search_startrecord=${startRecord}
  *   eller:
  *    &start=${startRecord}
- *
- * Du finner riktig param ved å åpne devtools network på Ultimate og se hva den kaller.
+ * Sjekk network i devtools hos Ultimate.
  */

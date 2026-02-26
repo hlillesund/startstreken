@@ -30,7 +30,6 @@ function fmtDate(d: Date | null): string {
 }
 
 async function getBaseUrl() {
-  // Next kan returnere Promise<ReadonlyHeaders> i nyere versjoner
   const h = await headers();
   const host = h.get("host");
   const proto = h.get("x-forwarded-proto") ?? "http";
@@ -75,7 +74,7 @@ export default async function AdminImportPage() {
         source_id_source_event_id_source_race_id: {
           source_id: source.id,
           source_event_id: args.sourceEventId,
-          source_race_id: args.sourceRaceId, // ✅ alltid string
+          source_race_id: args.sourceRaceId,
         },
       },
       update: {
@@ -90,7 +89,7 @@ export default async function AdminImportPage() {
       create: {
         source_id: source.id,
         source_event_id: args.sourceEventId,
-        source_race_id: args.sourceRaceId, // ✅ alltid string
+        source_race_id: args.sourceRaceId,
         event_name: args.event_name,
         start_date: toDateOnly(args.start_date),
         location: args.location,
@@ -107,10 +106,9 @@ export default async function AdminImportPage() {
 
     const baseUrl = await getBaseUrl();
     const sourceSlug = String(formData.get("sourceSlug") ?? "").trim();
-
     if (!sourceSlug) return { ok: false, error: "Mangler sourceSlug" };
 
-    // felles override-felter
+    // felles override-felter (preset-save)
     const overrideEnabled = Boolean(formData.get("override_enabled"));
 
     const o_eventName = String(formData.get("event_name") ?? "").trim() || null;
@@ -131,16 +129,11 @@ export default async function AdminImportPage() {
         ? (catStr as DistanceCategory)
         : null) ?? null;
 
-    // helper: lagre override preset hvis ønsket
-    const maybeSavePreset = async (key: {
-      sourceEventId: string;
-      sourceRaceId: string; // alltid string
-    }) => {
-      if (!overrideEnabled) return false;
+    const hasSomething =
+      Boolean(o_eventName || o_startDate || o_location || o_raceName || o_distanceM !== null || o_cat);
 
-      // bare lagre hvis noe faktisk er fylt inn
-      const hasSomething =
-        Boolean(o_eventName || o_startDate || o_location || o_raceName || o_distanceM !== null || o_cat);
+    const savePresetIfNeeded = async (key: { sourceEventId: string; sourceRaceId: string }) => {
+      if (!overrideEnabled) return false;
       if (!hasSomething) return false;
 
       await saveOverridePreset({
@@ -171,16 +164,27 @@ export default async function AdminImportPage() {
         if (!Number.isFinite(eventId)) return { ok: false, error: "Ultimate: eventId må være tall" };
         if (!Number.isFinite(distance)) return { ok: false, error: "Ultimate: distance må være tall (f.eks 1/2/…)" };
 
-        // Viktig: racen i DB bruker source_race_id = String(distance)
         const sourceEventId = String(eventId);
         const sourceRaceId = String(distance);
 
-        const res = await fetch(`${baseUrl}/api/ultimate/import-results`, {
-          method: "POST",
-          headers: { "content-type": "application/json" },
-          body: JSON.stringify({ eventId, distance, onlyNor }),
-          cache: "no-store",
-        });
+        // ✅ lagre preset før import hvis ønsket (så apply-overrides kan treffe ved refresh/import også)
+        const saved = await savePresetIfNeeded({ sourceEventId, sourceRaceId });
+
+   const override = {
+  event_name: o_eventName,
+  start_date: o_startDate,
+  location: o_location,
+  race_name: o_raceName,
+  distance_m: o_distanceM,
+  distance_category: o_cat,
+};
+
+const res = await fetch(`${baseUrl}/api/ultimate/import-results`, {
+  method: "POST",
+  headers: { "content-type": "application/json" },
+  body: JSON.stringify({ eventId, distance, onlyNor, override }),
+  cache: "no-store",
+});
 
         if (!res.ok) {
           const t = await res.text().catch(() => "");
@@ -188,9 +192,6 @@ export default async function AdminImportPage() {
         }
 
         const summary = await res.json().catch(() => ({}));
-
-        const saved = await maybeSavePreset({ sourceEventId, sourceRaceId });
-
         revalidatePath("/admin/import");
         return { ok: true, summary, overridesSaved: saved };
       }
@@ -210,10 +211,10 @@ export default async function AdminImportPage() {
         if (!key) return { ok: false, error: "RaceResult: mangler key" };
         if (!Number.isFinite(contest)) return { ok: false, error: "RaceResult: contest må være tall" };
 
-        // Må matche import-routen din:
-        // sourceRaceId = `${listName}|${contest}|${filter || "ALL"}`
         const sourceEventId = String(eventId);
         const sourceRaceId = `${listName}|${contest}|${filter || "ALL"}`;
+
+        const saved = await savePresetIfNeeded({ sourceEventId, sourceRaceId });
 
         const res = await fetch(`${baseUrl}/api/raceresult/import-results`, {
           method: "POST",
@@ -228,40 +229,36 @@ export default async function AdminImportPage() {
         }
 
         const summary = await res.json().catch(() => ({}));
-
-        const saved = await maybeSavePreset({ sourceEventId, sourceRaceId });
-
         revalidatePath("/admin/import");
         return { ok: true, summary, overridesSaved: saved };
       }
 
-      // ---------------- EQTIMING ----------------
+      // ---------------- EQTIMING (OPPDATERT) ----------------
       if (sourceSlug === "eqtiming") {
         const eventIdStr = String(formData.get("eq_eventId") ?? "").trim();
         const eventId = Number(eventIdStr);
         if (!Number.isFinite(eventId)) return { ok: false, error: "EQTiming: eventId må være tall" };
 
-        // Import startliste (rask + gjør utøvere søkbare med en gang)
-        const res = await fetch(`${baseUrl}/api/eqtiming/import-startlist`, {
+        const sourceEventId = String(eventId);
+        const sourceRaceId = ""; // event-only preset
+
+        // ✅ lagre event-only preset før import (valgfritt)
+        const saved = await savePresetIfNeeded({ sourceEventId, sourceRaceId });
+
+        // ✅ Kjør din "import-run" som gjør: startliste + resultater (report 347) + match
+        const res = await fetch(`${baseUrl}/api/admin/import-run`, {
           method: "POST",
           headers: { "content-type": "application/json" },
-          body: JSON.stringify({ eventId }),
+          body: JSON.stringify({ sourceSlug: "eqtiming", params: { eventId } }),
           cache: "no-store",
         });
 
         if (!res.ok) {
           const t = await res.text().catch(() => "");
-          return { ok: false, error: `EQTiming startliste feilet: ${res.status} ${t}` };
+          return { ok: false, error: `EQTiming import feilet: ${res.status} ${t}` };
         }
 
         const summary = await res.json().catch(() => ({}));
-
-        // For EQTiming kan du lagre event-only preset uten race-id ("" = event-only)
-        const sourceEventId = String(eventId);
-        const sourceRaceId = ""; // ✅ event-only override
-
-        const saved = await maybeSavePreset({ sourceEventId, sourceRaceId });
-
         revalidatePath("/admin/import");
         return { ok: true, summary, overridesSaved: saved };
       }
@@ -308,8 +305,6 @@ export default async function AdminImportPage() {
             action={async (fd) => {
               "use server";
               const out = await runImport(fd);
-              // enkel server-side “flash” via revalidate: vi bare kaster feil for å se i terminal,
-              // men på UI viser vi ikke toast i server component uten ekstra state.
               if (!out.ok) throw new Error(out.error);
             }}
             className="mt-5 grid grid-cols-1 gap-4 md:grid-cols-2"
@@ -334,9 +329,7 @@ export default async function AdminImportPage() {
                 className="mt-1 w-full rounded-xl border border-white/15 bg-black/40 px-3 py-2 text-white outline-none placeholder:text-white/40"
                 required
               />
-              <div className="mt-1 text-xs text-white/50">
-                Tips: du fant maraton på event=6581 med distance=1. Ofte er halvmaraton = 2.
-              </div>
+              <div className="mt-1 text-xs text-white/50">Tips: ofte er maraton = 1 og halvmaraton = 2.</div>
             </div>
 
             <label className="flex items-center gap-2 text-sm text-white/70">
@@ -353,7 +346,7 @@ export default async function AdminImportPage() {
                 Lagre overrides (valgfritt)
               </label>
               <p className="mt-1 text-xs text-white/55">
-                Hvis du fyller inn noe under, lagres det som preset for denne event+racedistansen, så import/refresh holder seg “pent”.
+                Hvis du fyller inn noe under, lagres det som preset for denne event+racedistansen.
               </p>
 
               <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2">
@@ -432,12 +425,14 @@ export default async function AdminImportPage() {
         </div>
 
         {/* ===================== RACERESULT ===================== */}
+               {/* ===================== RACERESULT ===================== */}
         <div className="mt-8 rounded-2xl border border-white/15 bg-white/5 p-6 shadow-2xl backdrop-blur-xl">
           <div className="flex items-baseline justify-between gap-4">
             <div>
               <h2 className="text-lg font-semibold">RaceResult (my1.raceresult.com)</h2>
               <p className="mt-1 text-sm text-white/60">
-                Importerer én liste/contest/filter per kjøring (raceKey blir stabil: <span className="text-white/80">listName|contest|filter</span>).
+                Importerer én liste/contest/filter per kjøring (raceKey blir stabil:{" "}
+                <span className="text-white/80">listName|contest|filter</span>).
               </p>
             </div>
             <span className="rounded-full border border-white/15 bg-black/40 px-3 py-1 text-xs text-white/70">
@@ -589,8 +584,9 @@ export default async function AdminImportPage() {
             <div>
               <h2 className="text-lg font-semibold">EQTiming</h2>
               <p className="mt-1 text-sm text-white/60">
-                Denne knappen importerer <span className="text-white/80">startliste</span> for et event (gjør utøvere søkbare).
-                Resultater kommer typisk via refresh per utøver, men du kan lagre event-override her.
+                Skriv inn <span className="text-white/80">eventId</span> og trykk import: den kjører{" "}
+                <span className="text-white/80">startliste</span> +{" "}
+                <span className="text-white/80">resultater (report 347)</span> og matcher via startnummer.
               </p>
             </div>
             <span className="rounded-full border border-white/15 bg-black/40 px-3 py-1 text-xs text-white/70">
@@ -612,7 +608,7 @@ export default async function AdminImportPage() {
               <label className="text-sm text-white/70">Event ID</label>
               <input
                 name="eq_eventId"
-                placeholder="f.eks 123456"
+                placeholder="f.eks 80410"
                 className="mt-1 w-full rounded-xl border border-white/15 bg-black/40 px-3 py-2 text-white outline-none placeholder:text-white/40"
                 required
               />
@@ -627,8 +623,7 @@ export default async function AdminImportPage() {
                 Lagre event-override (valgfritt)
               </label>
               <p className="mt-1 text-xs text-white/55">
-                For EQTiming lagres dette som <span className="text-white/70">event-only</span> preset (raceKey = tom streng).
-                Race-spesifikke overrides kan legges senere når du vet EtappeUID.
+                Lagres som <span className="text-white/70">event-only</span> preset (raceKey = tom streng).
               </p>
 
               <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2">
@@ -663,7 +658,7 @@ export default async function AdminImportPage() {
 
             <div className="md:col-span-2">
               <button className="w-full rounded-xl bg-white px-4 py-2 font-semibold text-black hover:bg-white/90">
-                Importer EQTiming startliste
+                Importer EQTiming (startliste + resultater)
               </button>
             </div>
           </form>
@@ -755,7 +750,7 @@ export default async function AdminImportPage() {
             </span>
           ))}
         </div>
-      </div>
+          </div>
     </section>
   );
 }

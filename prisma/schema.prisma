@@ -21,25 +21,36 @@ model audit_log_entries {
   @@schema("auth")
 }
 
+model eq_startlist_entries {
+  id              String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  source_id       String   @db.Uuid
+  event_id        Int
+  bib             String
+  participant_uid String
+  class_name      String?
+  created_at      DateTime @default(now()) @db.Timestamptz(6)
+  sources         sources  @relation(fields: [source_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@unique([source_id, event_id, bib])
+  @@index([source_id, event_id], map: "eq_startlist_entries_source_event_idx")
+  @@index([source_id, participant_uid], map: "eq_startlist_entries_source_uid_idx")
+  @@schema("public")
+}
+
 model import_presets {
-  id String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-
-  source_id       String  @db.Uuid
-  source_event_id String
-  source_race_id  String? // nullable, fordi noen kilder har event-level uten race-id
-
-  event_name String?
-  start_date DateTime? @db.Date
-  location   String?
-
+  id                String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  source_id         String    @db.Uuid
+  source_event_id   String
+  source_race_id    String?
+  event_name        String?
+  start_date        DateTime? @db.Date
+  location          String?
   race_name         String?
   distance_m        Int?
-  distance_category String? // "5K"|"10K"|"HM"|"M"|"OTHER"
-
-  created_at DateTime @default(now()) @db.Timestamptz(6)
-  updated_at DateTime @default(now()) @db.Timestamptz(6)
-
-  sources sources @relation(fields: [source_id], references: [id], onDelete: Cascade)
+  distance_category String?
+  created_at        DateTime  @default(now()) @db.Timestamptz(6)
+  updated_at        DateTime  @default(now()) @db.Timestamptz(6)
+  sources           sources   @relation(fields: [source_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
 
   @@unique([source_id, source_event_id, source_race_id])
   @@index([source_id, source_event_id], map: "import_presets_event_idx")
@@ -435,67 +446,10 @@ model users {
   oauth_consents              oauth_consents[]
   one_time_tokens             one_time_tokens[]
   sessions                    sessions[]
-  profiles                    profiles?
-  race_results                race_results[]
-  race_reviews                race_reviews[]
-  user_favorite_races         user_favorite_races[]
-  user_shoes                  user_shoes[]
 
   @@index([instance_id])
   @@index([is_anonymous])
   @@schema("auth")
-}
-
-model locations {
-  id         String                    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  name       String
-  county     String?
-  country    String?                   @default("Norway")
-  location   Unsupported("geography")?
-  created_at DateTime?                 @default(now()) @db.Timestamptz(6)
-
-  @@index([location], map: "locations_geo_idx", type: Gist)
-  @@schema("public")
-}
-
-/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
-model profiles {
-  id         String    @id @db.Uuid
-  username   String?   @unique
-  full_name  String?
-  created_at DateTime? @default(now()) @db.Timestamptz(6)
-  users      users     @relation(fields: [id], references: [id], onDelete: Cascade, onUpdate: NoAction)
-
-  @@schema("public")
-}
-
-/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
-model race_results {
-  id                  String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  user_id             String?   @db.Uuid
-  race_id             String    @db.Uuid
-  finish_time_seconds Int
-  position_overall    Int?
-  position_gender     Int?
-  created_at          DateTime? @default(now()) @db.Timestamptz(6)
-  users               users?    @relation(fields: [user_id], references: [id], onUpdate: NoAction)
-
-  @@schema("public")
-}
-
-/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
-/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
-model race_reviews {
-  id         String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  user_id    String    @db.Uuid
-  race_id    String    @db.Uuid
-  rating     Int?
-  comment    String?
-  created_at DateTime? @default(now()) @db.Timestamptz(6)
-  users      users     @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
-
-  @@unique([user_id, race_id])
-  @@schema("public")
 }
 
 /// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
@@ -511,60 +465,7 @@ model races {
 
   @@unique([event_id, source_race_id])
   @@index([distance_m], map: "races_distance_idx")
-  @@index([event_id])
-  @@schema("public")
-}
-
-/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
-model shoes {
-  id              String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  brand           String
-  model           String
-  category        String
-  stack_height_mm Float?
-  weight_g        Float?
-  carbon_plate    Boolean?     @default(false)
-  created_at      DateTime?    @default(now()) @db.Timestamptz(6)
-  user_shoes      user_shoes[]
-
-  @@unique([brand, model])
-  @@schema("public")
-}
-
-/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
-model spatial_ref_sys {
-  srid      Int     @id
-  auth_name String? @db.VarChar(256)
-  auth_srid Int?
-  srtext    String? @db.VarChar(2048)
-  proj4text String? @db.VarChar(2048)
-
-  @@schema("public")
-}
-
-/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
-model user_favorite_races {
-  user_id    String    @db.Uuid
-  race_id    String    @db.Uuid
-  created_at DateTime? @default(now()) @db.Timestamptz(6)
-  users      users     @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
-
-  @@id([user_id, race_id])
-  @@schema("public")
-}
-
-/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
-model user_shoes {
-  id         String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  user_id    String    @db.Uuid
-  shoe_id    String    @db.Uuid
-  nickname   String?
-  mileage_km Float?    @default(0)
-  created_at DateTime? @default(now()) @db.Timestamptz(6)
-  shoes      shoes     @relation(fields: [shoe_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
-  users      users     @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
-
-  @@unique([user_id, shoe_id])
+  @@index([event_id], map: "races_event_idx")
   @@schema("public")
 }
 
@@ -575,7 +476,7 @@ model athlete_identities {
   source_person_id String
   created_at       DateTime @default(now()) @db.Timestamptz(6)
   athletes         athletes @relation(fields: [athlete_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
-  sources          sources  @relation(fields: [source_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  sources          sources  @relation(fields: [source_id], references: [id], onUpdate: NoAction)
 
   @@unique([source_id, source_person_id])
   @@index([athlete_id], map: "athlete_identities_athlete_idx")
@@ -585,7 +486,7 @@ model athlete_identities {
 model athletes {
   id                 String               @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   display_name       String
-  display_name_norm  String               @unique(map: "athletes_display_name_norm_uq")
+  display_name_norm  String               @unique
   gender             String?
   birth_year         Int?
   created_at         DateTime             @default(now()) @db.Timestamptz(6)
@@ -607,10 +508,11 @@ model events {
   pretty_url      String?
   created_at      DateTime  @default(now()) @db.Timestamptz(6)
   updated_at      DateTime  @default(now()) @db.Timestamptz(6)
-  sources         sources   @relation(fields: [source_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  sources         sources   @relation(fields: [source_id], references: [id], onUpdate: NoAction)
   races           races[]
 
   @@unique([source_id, source_event_id])
+  @@index([source_id], map: "events_source_idx")
   @@schema("public")
 }
 
@@ -622,7 +524,7 @@ model import_runs {
   started_at      DateTime  @default(now()) @db.Timestamptz(6)
   finished_at     DateTime? @db.Timestamptz(6)
   error           String?
-  sources         sources   @relation(fields: [source_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  sources         sources   @relation(fields: [source_id], references: [id], onUpdate: NoAction)
 
   @@schema("public")
 }
@@ -643,6 +545,7 @@ model results {
   races             races    @relation(fields: [race_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
 
   @@unique([race_id, athlete_id, time_ms])
+  @@unique([race_id, athlete_id], map: "results_race_athlete_uq")
   @@index([athlete_id], map: "results_athlete_idx")
   @@index([race_id, time_ms], map: "results_race_time_idx")
   @@index([distance_category])
@@ -651,14 +554,15 @@ model results {
 }
 
 model sources {
-  id                 String               @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  slug               String               @unique
-  name               String
-  created_at         DateTime             @default(now()) @db.Timestamptz(6)
-  athlete_identities athlete_identities[]
-  events             events[]
-  import_runs        import_runs[]
-  import_presets     import_presets[]
+  id                   String                 @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  slug                 String                 @unique
+  name                 String
+  created_at           DateTime               @default(now()) @db.Timestamptz(6)
+  athlete_identities   athlete_identities[]
+  eq_startlist_entries eq_startlist_entries[]
+  events               events[]
+  import_presets       import_presets[]
+  import_runs          import_runs[]
 
   @@schema("public")
 }
@@ -676,6 +580,40 @@ model merge_suggestions {
 
   @@index([status, created_at(sort: Desc)], map: "merge_suggestions_pending_idx")
   @@schema("public")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model custom_oauth_providers {
+  id                    String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  provider_type         String
+  identifier            String    @unique
+  name                  String
+  client_id             String
+  client_secret         String
+  acceptable_client_ids String[]  @default([])
+  scopes                String[]  @default([])
+  pkce_enabled          Boolean   @default(true)
+  attribute_mapping     Json      @default("{}")
+  authorization_params  Json      @default("{}")
+  enabled               Boolean   @default(true)
+  email_optional        Boolean   @default(false)
+  issuer                String?
+  discovery_url         String?
+  skip_nonce_check      Boolean   @default(false)
+  cached_discovery      Json?
+  discovery_cached_at   DateTime? @db.Timestamptz(6)
+  authorization_url     String?
+  token_url             String?
+  userinfo_url          String?
+  jwks_uri              String?
+  created_at            DateTime  @default(now()) @db.Timestamptz(6)
+  updated_at            DateTime  @default(now()) @db.Timestamptz(6)
+
+  @@index([created_at])
+  @@index([enabled])
+  @@index([identifier])
+  @@index([provider_type])
+  @@schema("auth")
 }
 
 enum aal_level {

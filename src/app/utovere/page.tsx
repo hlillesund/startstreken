@@ -230,7 +230,16 @@ function TrendChart({ rows }: { rows: AthleteResultRow[] }) {
           );
         })}
 
-        {hover && <line x1={hover.x} x2={hover.x} y1={P} y2={H - P} stroke="rgba(34,197,94,0.25)" strokeWidth={1} />}
+        {hover && (
+          <line
+            x1={hover.x}
+            x2={hover.x}
+            y1={P}
+            y2={H - P}
+            stroke="rgba(34,197,94,0.25)"
+            strokeWidth={1}
+          />
+        )}
       </svg>
 
       {hover && (
@@ -271,7 +280,9 @@ function GlassPanel({
   children: React.ReactNode;
 }) {
   return (
-    <div className={`rounded-2xl border border-white/15 bg-black/35 p-6 shadow-2xl backdrop-blur-xl ${className}`}>
+    <div
+      className={`rounded-2xl border border-white/15 bg-black/35 p-6 shadow-2xl backdrop-blur-xl ${className}`}
+    >
       {(title || subtitle || right) && (
         <div className="mb-4 flex items-start justify-between gap-4">
           <div className="text-white">
@@ -358,10 +369,59 @@ export default function UtoverePage() {
 
   const [filter, setFilter] = useState<DistanceCategory>("HM");
 
+  // ✅ Ranking state
+  const [rank2026, setRank2026] = useState<{ rank: number; total: number } | null>(null);
+  const [rankingLoading, setRankingLoading] = useState(false);
+
   const [sortBy, setSortBy] = useState<"date" | "time">("date");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
 
   const canSearch = q.trim().length >= 2;
+
+  // ✅ Fetch ranking when athlete or filter changes
+  useEffect(() => {
+    if (!selected?.id) {
+      setRank2026(null);
+      return;
+    }
+
+    if (filter === "OTHER") {
+      setRank2026(null);
+      return;
+    }
+
+    let cancelled = false;
+
+    const run = async () => {
+      setRankingLoading(true);
+      try {
+        const res = await fetch(
+          `/api/rankings?athleteId=${encodeURIComponent(selected.id)}&category=${encodeURIComponent(
+            filter
+          )}&year=2026`,
+          { cache: "no-store" }
+        );
+
+        const data = await res.json().catch(() => ({}));
+        if (cancelled) return;
+
+        if (res.ok && data?.ok && Number.isFinite(data?.rank) && Number.isFinite(data?.total)) {
+          setRank2026({ rank: data.rank, total: data.total });
+        } else {
+          setRank2026(null);
+        }
+      } catch {
+        if (!cancelled) setRank2026(null);
+      } finally {
+        if (!cancelled) setRankingLoading(false);
+      }
+    };
+
+    run();
+    return () => {
+      cancelled = true;
+    };
+  }, [selected?.id, filter]);
 
   useEffect(() => {
     let t: ReturnType<typeof setTimeout> | null = null;
@@ -501,19 +561,11 @@ export default function UtoverePage() {
 
     const best = arr.slice().sort((a, b) => a.time_ms - b.time_ms)[0] ?? null;
 
-    // 2026 PB (placeholder KPI uses local data)
     const y2026 = arr.filter((r) => yearFromDate(r.start_date) === 2026);
     const pb2026 = y2026.length ? y2026.slice().sort((a, b) => a.time_ms - b.time_ms)[0] : null;
 
     return { avgT, medT, first, last, change, best, pb2026, count: arr.length };
   }, [sorted]);
-
-  // Placeholder: “rank in 2026” – not implemented yet
-  const [rank2026, setRank2026] = useState<{ rank: number; total: number } | null>(null);
-  useEffect(() => {
-    // Placeholder only. When you add an endpoint later, you can fetch it here.
-    setRank2026(null);
-  }, [selected?.id, filter]);
 
   return (
     <section className="relative min-h-screen w-full">
@@ -525,7 +577,6 @@ export default function UtoverePage() {
           <h1 className="text-4xl font-semibold tracking-tight sm:text-5xl">Utøvere</h1>
           <p className="mt-4 text-lg text-white/85">Søk etter en utøver og se resultater på tvers av løp.</p>
 
-          {/* SEARCH */}
           {!selected && (
             <div className="mx-auto mt-8 max-w-md">
               <div className="rounded-2xl border border-white/15 bg-black/35 p-2 shadow-2xl backdrop-blur-xl">
@@ -591,10 +642,8 @@ export default function UtoverePage() {
           )}
         </div>
 
-        {/* ATHLETE VIEW */}
         {selected && (
           <>
-            {/* Header card */}
             <div className="mx-auto mb-5 mt-2 max-w-6xl rounded-2xl border border-white/15 bg-black/35 p-5 text-white shadow-2xl backdrop-blur-xl sm:p-6">
               <button
                 className="mb-4 inline-flex items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-xs font-semibold text-white/80 hover:bg-white/10"
@@ -607,6 +656,7 @@ export default function UtoverePage() {
                   setRefreshing(false);
                   setQ("");
                   setHits([]);
+                  setRank2026(null);
                 }}
               >
                 ← Tilbake
@@ -630,7 +680,6 @@ export default function UtoverePage() {
                 )}
               </div>
 
-              {/* Filters */}
               <div className="mt-5 flex flex-wrap gap-2">
                 {FILTERS.map((f) => (
                   <button
@@ -647,7 +696,6 @@ export default function UtoverePage() {
                 ))}
               </div>
 
-              {/* Sort */}
               <div className="mt-4 flex flex-wrap items-center gap-2 text-sm">
                 <span className="mr-2 text-white/55">Sorter:</span>
                 <button
@@ -680,9 +728,7 @@ export default function UtoverePage() {
               </div>
             </div>
 
-            {/* Dashboard grid */}
             <div className="mx-auto max-w-6xl pb-10">
-              {/* KPI + PR + Placeholder rank */}
               <div className="grid grid-cols-1 gap-5 lg:grid-cols-12">
                 <GlassPanel
                   className="lg:col-span-7"
@@ -696,11 +742,7 @@ export default function UtoverePage() {
                 >
                   <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
                     <StatPill label="Antall" value={`${trendStats.count}`} hint="Antall resultater i filteret" />
-                    <StatPill
-                      label="Gjennomsnitt"
-                      value={trendStats.avgT ? formatTime(trendStats.avgT) : "-"}
-                      hint="Snitt-tid"
-                    />
+                    <StatPill label="Gjennomsnitt" value={trendStats.avgT ? formatTime(trendStats.avgT) : "-"} hint="Snitt-tid" />
                     <StatPill label="Median" value={trendStats.medT ? formatTime(trendStats.medT) : "-"} hint="Typisk tid" />
                     <StatPill
                       label="Beste (PB)"
@@ -714,46 +756,48 @@ export default function UtoverePage() {
                     />
                     <StatPill
                       label="Endring"
-                      value={
-                        trendStats.change === null
-                          ? "-"
-                          : `${trendStats.change > 0 ? "+" : ""}${trendStats.change.toFixed(1)}%`
-                      }
+                      value={trendStats.change === null ? "-" : `${trendStats.change > 0 ? "+" : ""}${trendStats.change.toFixed(1)}%`}
                       hint={trendStats.change === null ? "Sammenligner første og siste" : "Negativt = raskere"}
                     />
                   </div>
 
                   <div className="mt-4 rounded-2xl border border-white/12 bg-black/30 p-4">
                     <div className="flex flex-wrap items-center justify-between gap-3">
-                      <div className="text-sm font-semibold text-white">2026-rangering (placeholder)</div>
-                      <span className="text-xs text-white/55">
-                        Plan: raskeste tid i 2026 vs alle i DB (samme distanse)
-                      </span>
+                      <div className="text-sm font-semibold text-white">2026-rangering</div>
+                      <span className="text-xs text-white/55">Raskeste tid i 2026 vs alle i DB (samme distanse)</span>
                     </div>
 
                     <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-3">
                       <StatPill
                         label="2026 PB"
                         value={trendStats.pb2026 ? formatTime(trendStats.pb2026.time_ms) : "-"}
-                        hint={trendStats.pb2026 ? `${formatDate(trendStats.pb2026.start_date)} • ${trendStats.pb2026.event_name}` : "Ingen i 2026 (i denne distansen)"}
+                        hint={
+                          trendStats.pb2026
+                            ? `${formatDate(trendStats.pb2026.start_date)} • ${trendStats.pb2026.event_name}`
+                            : "Ingen i 2026 (i denne distansen)"
+                        }
                       />
-                      <StatPill label="Plassering" value={rank2026 ? `#${rank2026.rank}` : "—"} hint="Kommer når vi lager endpoint" />
-                      <StatPill label="Av" value={rank2026 ? `${rank2026.total}` : "—"} hint="Totalt antall utøvere i ranking" />
+                      <StatPill
+                        label="Plassering"
+                        value={rankingLoading ? "…" : rank2026 ? `#${rank2026.rank}` : "—"}
+                        hint={rankingLoading ? "Henter ranking…" : rank2026 ? "Raskeste tid i 2026" : filter === "OTHER" ? "Ingen ranking for OTHER" : "Ingen ranking tilgjengelig"}
+                      />
+                      <StatPill
+                        label="Av"
+                        value={rankingLoading ? "…" : rank2026 ? `${rank2026.total}` : "—"}
+                        hint="Totalt antall utøvere i ranking"
+                      />
                     </div>
 
-                    <div className="mt-3 text-xs text-white/55">
-                      Når du er klar: lag en API-route som returnerer rank basert på{" "}
-                      <span className="text-white/70">min(time_ms)</span> for{" "}
-                      <span className="text-white/70">year=2026</span> og valgt kategori.
-                    </div>
+                    {filter === "OTHER" && (
+                      <div className="mt-3 text-xs text-white/55">
+                        Ranking vises ikke for <span className="text-white/70">OTHER</span>.
+                      </div>
+                    )}
                   </div>
                 </GlassPanel>
 
-                <GlassPanel
-                  className="lg:col-span-5"
-                  title="Personlige rekorder"
-                  subtitle="Klikk en distanse for å bytte filter."
-                >
+                <GlassPanel className="lg:col-span-5" title="Personlige rekorder" subtitle="Klikk en distanse for å bytte filter.">
                   <PRTable
                     prs={[
                       { ...prs.find((p) => p.cat === "5K")!, label: "5K" },
@@ -767,7 +811,9 @@ export default function UtoverePage() {
                   />
 
                   <div className="mt-4 rounded-2xl border border-white/12 bg-black/30 p-4">
-                    <div className="text-sm font-semibold text-white">Detalj: {FILTERS.find((f) => f.key === filter)?.label}</div>
+                    <div className="text-sm font-semibold text-white">
+                      Detalj: {FILTERS.find((f) => f.key === filter)?.label}
+                    </div>
                     <div className="mt-2 text-sm text-white/75">
                       PB:{" "}
                       <span className="font-semibold text-white">
@@ -783,7 +829,6 @@ export default function UtoverePage() {
                 </GlassPanel>
               </div>
 
-              {/* Chart + Results */}
               <div className="mt-5 grid grid-cols-1 gap-5 lg:grid-cols-12">
                 <GlassPanel
                   className="lg:col-span-12"
@@ -844,9 +889,7 @@ export default function UtoverePage() {
                                   </div>
                                 </div>
 
-                                <div className="hidden shrink-0 text-white/35 transition group-hover:text-white/60 sm:block">
-                                  →
-                                </div>
+                                <div className="hidden shrink-0 text-white/35 transition group-hover:text-white/60 sm:block">→</div>
                               </div>
                             </div>
 
@@ -858,8 +901,7 @@ export default function UtoverePage() {
                       </div>
 
                       <div className="border-t border-white/10 bg-black/35 px-5 py-3 text-xs text-white/55">
-                        Viser {sorted.length} resultat{sorted.length === 1 ? "" : "er"} i{" "}
-                        {FILTERS.find((f) => f.key === filter)?.label}.
+                        Viser {sorted.length} resultat{sorted.length === 1 ? "" : "er"} i {FILTERS.find((f) => f.key === filter)?.label}.
                       </div>
                     </div>
                   )}

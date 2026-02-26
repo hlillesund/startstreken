@@ -2,47 +2,19 @@
 import { prisma } from "@/lib/prisma";
 import { fetchEqParticipantResults } from "@/lib/eqtiming";
 import { Prisma } from "@prisma/client";
+import { classifyEqDistanceCategoryFromItem, applySanity, DistanceCategory } from "@/lib/distance-category";
 
 function normName(name: string) {
   return name.trim().toLowerCase().replace(/\s+/g, " ");
 }
 
-type DistanceCategory = "5K" | "10K" | "HM" | "M" | "OTHER";
 
-function classifyEqDistanceCategory(item: any): DistanceCategory | null {
-  const et = String(item?.EtappeNavn ?? "").toLowerCase();
 
-  // Halvmaraton først (fordi "halvmaraton" inneholder "maraton")
-  if (et.includes("halv") || et.includes("half")) return "HM";
-
-  // Maraton
-  if (et.includes("maraton") || et.includes("marathon")) return "M";
-
-  // 10 km
-  if (/\b10\s*(km|k)\b/.test(et) || et.includes("10km") || et.includes("10 km")) return "10K";
-  if (/\bmil(a|en)?\b/.test(et)) return "10K";
-
-  // 5 km / 5000m
-  if (/\b5\s*(km|k)\b/.test(et) || et.includes("5km") || et.includes("5 km") || /\b5000\b/.test(et))
-    return "5K";
-
-  return null;
+function normRaceId(s: string) {
+  return s.trim().toLowerCase().replace(/\s+/g, " ");
 }
 
-// “åpenbart feil”-guardrails (kun de helt sikre)
-function applySanity(category: DistanceCategory | null, timeMs: number, raceName: string): DistanceCategory | null {
-  if (!category) return category;
 
-  // Hvis vi allerede har HM fra navn, behold.
-  const rn = raceName.toLowerCase();
-  if (rn.includes("halv") || rn.includes("half")) return "HM";
-
-  // Maraton under 1:50 er i praksis umulig → HM
-  const ONE_H_50 = 1 * 3600_000 + 50 * 60_000; // 6_600_000
-  if (category === "M" && timeMs > 0 && timeMs < ONE_H_50) return "HM";
-
-  return category;
-}
 
 export async function POST(req: Request) {
   const tAll0 = Date.now();
@@ -108,8 +80,7 @@ console.log("eq fetch ms", fetchMs)
       if (!eventId || !eventNameRaw || !timeMs) return null;
 
       const sourceEventId = String(eventId);
-      const sourceRaceId = String(raceIdRaw ?? raceNameRaw);
-
+const sourceRaceId = normRaceId(String(raceNameRaw));
       return {
         it,
         sourceEventId,
@@ -272,12 +243,9 @@ console.log("eq fetch ms", fetchMs)
       if (!race_uuid) return null;
 
       const p = resolvePreset(r.sourceEventId, r.sourceRaceId);
-      const inferred = classifyEqDistanceCategory(r.it);
-      const desired = applySanity(
-        (p?.distance_category ?? inferred ?? null) as DistanceCategory | null,
-        r.timeMs,
-        r.raceNameRaw
-      );
+     const inferred = classifyEqDistanceCategoryFromItem(r.it);
+
+  const desired = applySanity((p?.distance_category ?? inferred ?? "OTHER") as DistanceCategory, r.timeMs, r.raceNameRaw);
 
       return Prisma.sql`(
         ${race_uuid}::uuid,
@@ -291,17 +259,19 @@ console.log("eq fetch ms", fetchMs)
     .filter(Boolean) as Prisma.Sql[];
 
   // 10) Batch UPSERT results via SQL (insert + update i ett)
+
   await prisma.$executeRaw(
-    Prisma.sql`
-      INSERT INTO public.results (race_id, athlete_id, time_ms, rank_overall, raw, distance_category)
-      VALUES ${Prisma.join(resultValues)}
-      ON CONFLICT (race_id, athlete_id, time_ms)
-      DO UPDATE SET
-        rank_overall = EXCLUDED.rank_overall,
-        raw = EXCLUDED.raw,
-        distance_category = EXCLUDED.distance_category;
-    `
-  );
+  Prisma.sql`
+    INSERT INTO public.results (race_id, athlete_id, time_ms, rank_overall, raw, distance_category)
+    VALUES ${Prisma.join(resultValues)}
+    ON CONFLICT (race_id, athlete_id)
+    DO UPDATE SET
+      time_ms = EXCLUDED.time_ms,
+      rank_overall = EXCLUDED.rank_overall,
+      raw = EXCLUDED.raw,
+      distance_category = EXCLUDED.distance_category;
+  `
+);
 
   const dbMs = Date.now() - tDb0;
   console.log("db ms", dbMs)

@@ -1341,3 +1341,213 @@ body {
   font-family: "DM Mono", monospace;
   color: #aaa;
 }
+
+/* ============================================================
+   UTØVERE – MOBILE FIX (legg nederst i globals.css)
+============================================================ */
+
+@media (max-width: 768px) {
+  /* Litt mindre luft på mobil */
+  .cpn-header {
+    padding: 0 16px;
+    height: 52px;
+  }
+
+  .cpn-hero {
+    padding: 36px 16px 28px;
+    grid-template-columns: 1fr;
+    gap: 16px;
+    align-items: start;
+  }
+
+  .cpn-hero-title {
+    font-size: clamp(34px, 9vw, 54px);
+    line-height: 0.95;
+  }
+
+  .cpn-hero-desc {
+    max-width: 100%;
+    font-size: 12px;
+    line-height: 1.65;
+  }
+
+  .cpn-search-wrap {
+    padding: 20px 16px;
+  }
+
+  .cpn-search-row {
+    flex-direction: row;
+  }
+
+  .cpn-search-input {
+    padding: 14px 14px;
+    font-size: 16px;
+  }
+
+  .cpn-search-clear {
+    padding: 14px 12px;
+    font-size: 12px;
+    white-space: nowrap;
+  }
+
+  .cpn-hits {
+    border-left: 1px solid #1a1a1a;
+    border-right: 1px solid #1a1a1a;
+  }
+
+  .cpn-hit {
+    padding: 12px 14px;
+  }
+
+  /* Under søk: leaderboards + upcoming */
+  .cpn-home-sections {
+    padding: 20px 16px 40px;
+    gap: 20px;
+  }
+
+  /* Leaderboards grid -> 1 kolonne */
+  .cpn-leaderboards-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .cpn-lb-card {
+    border-right: none;
+  }
+  .cpn-lb-card:nth-child(-n + 4) {
+    border-top: 1px solid #e8e4df; /* unngå “manglende” separators på mobil */
+  }
+
+  /* Upcoming grid -> 1 kolonne */
+  .cpn-upcoming-grid {
+    grid-template-columns: 1fr;
+  }
+  .cpn-upcoming-col {
+    border-right: none;
+  }
+  .cpn-upcoming-col:nth-child(-n + 4) {
+    border-top: 1px solid #e8e4df;
+  }
+
+  /* Når du er inne på en utøver */
+  .cpn-profile {
+    padding: 0 16px;
+  }
+
+  .cpn-athlete-header {
+    padding: 28px 0 22px;
+    grid-template-columns: 1fr;
+    gap: 14px;
+    align-items: start;
+  }
+
+  .cpn-athlete-name {
+    font-size: clamp(28px, 8vw, 44px);
+    line-height: 1;
+  }
+
+  .cpn-tabs {
+    position: sticky;
+    top: var(--topnav-h); /* så tabs ikke havner bak topnav */
+    z-index: 5;
+    background: #f4f1ed;
+  }
+
+  .cpn-tab {
+    padding: 14px 0;
+    font-size: 10px;
+  }
+
+  /* Stats: 2 kolonner på mobil, mindre padding */
+  .cpn-stats-section {
+    padding: 24px 0;
+  }
+
+  .cpn-stat-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .cpn-stat {
+    padding: 16px 14px;
+  }
+
+  .cpn-stat-value {
+    font-size: 18px;
+  }
+
+  /* Ranking strip: stable wrap på mobil */
+  .cpn-rank-strip {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .cpn-rank-label {
+    border-right: 1px solid #e0dcd8;
+  }
+
+  .cpn-rank-val {
+    border-right: none;
+  }
+
+  /* PR table: stable på mobil */
+  .cpn-pr-head,
+  .cpn-pr-row {
+    grid-template-columns: 1.6fr 1.2fr 1.2fr 0.6fr;
+  }
+
+  .cpn-pr-td,
+  .cpn-pr-th {
+    padding: 10px 10px;
+    font-size: 11px;
+  }
+
+  /* Chart section: mindre padding */
+  .cpn-chart-section {
+    padding: 24px 0;
+  }
+
+  /* Results: gjøre tabellen mobil-vennlig (stacke rader) */
+  .cpn-results-section {
+    padding: 24px 0 48px;
+  }
+
+  .cpn-sort-row {
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: 6px;
+  }
+
+  .cpn-table-head {
+    display: none; /* skjul desktop header på mobil */
+  }
+
+  .cpn-tr {
+    grid-template-columns: 1fr;
+    padding: 12px 0;
+  }
+
+  .cpn-td {
+    border-right: none;
+    padding: 8px 0;
+  }
+
+  .cpn-td:last-child {
+    text-align: left;
+    align-items: flex-start;
+  }
+
+  .cpn-time {
+    font-size: 16px;
+  }
+}
+
+/* Ekstra små skjermer (iPhone SE etc.) */
+@media (max-width: 360px) {
+  .cpn-header {
+    padding: 0 12px;
+  }
+  .cpn-search-wrap,
+  .cpn-home-sections,
+  .cpn-profile {
+    padding-left: 12px;
+    padding-right: 12px;
+  }
+}

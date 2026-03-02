@@ -131,7 +131,7 @@ export default function Home() {
       <h1 className="cpn-hero-video-title">Startstreken.</h1>
 
       <p className="cpn-hero-video-desc">
-        Finn utøvere, se PB, ranking og utvikling. Løpssøk kommer — men akkurat nå er fokus på resultat- og utøveropplevelsen.
+        Finn utøvere, se personlige rekorder, ranking og utvikling. Løpssøk kommer.
       </p>
 
       <div className="cpn-hero-actions">

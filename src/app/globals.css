@@ -1930,13 +1930,14 @@ body {
 
 /* typografi på hero */
 .cpn-hero-video-title {
-  font-size: clamp(44px, 6vw, 86px);
+  font-size: clamp(38px, 7vw, 86px);
   font-weight: 800;
   letter-spacing: -0.03em;
   text-transform: uppercase;
   line-height: 0.92;
   margin: 10px 0 14px;
   color: #fff;
+  white-space: nowrap; /* 👈 viktig */
 }
 
 .cpn-hero-video-desc {
@@ -2192,5 +2193,10 @@ body {
   .cpn-header-right {
     font-size: 9px;
     letter-spacing: 0.08em;
+  }
+}@media (max-width: 768px) {
+  .cpn-hero-video-title {
+    font-size: clamp(28px, 9vw, 38px);
+    letter-spacing: -0.02em;
   }
 }

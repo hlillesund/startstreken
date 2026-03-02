@@ -2196,7 +2196,7 @@ body {
   }
 }@media (max-width: 768px) {
   .cpn-hero-video-title {
-    font-size: clamp(24px, 9vw, 38px);
+    font-size: clamp(18px, 9vw, 38px);
     letter-spacing: -0.02em;
   }
 }

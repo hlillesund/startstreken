@@ -2170,3 +2170,27 @@ body {
   text-transform: uppercase;
   color: #1a1a1a;
 }
+/* ============================================================
+   HEADER – MOBILE FIX
+============================================================ */
+
+@media (max-width: 768px) {
+
+  .cpn-header {
+    padding: 0 16px;
+    height: 52px;
+  }
+
+  .cpn-logo {
+    font-size: 10px;          /* litt mindre */
+    letter-spacing: 0.12em;   /* mindre tracking */
+    white-space: nowrap;      /* aldri wrap */
+    overflow: hidden;
+    text-overflow: ellipsis;  /* sikkerhet */
+  }
+
+  .cpn-header-right {
+    font-size: 9px;
+    letter-spacing: 0.08em;
+  }
+}

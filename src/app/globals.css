@@ -2196,7 +2196,12 @@ body {
   }
 }@media (max-width: 768px) {
   .cpn-hero-video-title {
-    font-size: clamp(18px, 9vw, 38px);
+    font-size: 28px;          /* fast og trygt */
+    line-height: 1.02;        /* bedre når den bryter */
     letter-spacing: -0.02em;
+    text-transform: none;     /* gjør ordet smalere */
+    margin: 6px 0 10px;
+    max-width: 100%;
+    overflow-wrap: anywhere;  /* aldri klipp */
   }
 }

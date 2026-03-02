@@ -1,5 +1,6 @@
 import { parseUltimateResults } from "@/lib/ultimate-parse";
 
+
 /**
  * Standard results-feed (som du har nå)
  * ✅ distance kan være null (best-effort). Hvis Ultimate krever distance,
@@ -64,8 +65,20 @@ export async function fetchUltimateResultsAllRaw(
   return pages;
 }
 
+
+function ultimateHeaders() {
+  return {
+    Accept: "*/*",
+    "User-Agent": "Mozilla/5.0",
+    Referer: "https://live.ultimate.dk/",
+  } as Record<string, string>;
+}
+
 /**
  * ✅ Advanced search: kun norske (NOR), valgfritt distansefilter.
+ * FIX:
+ *  - fjern search_sortby=[TIMEFIELD] (kan gi 0 rows)
+ *  - prøv results_startrecord først, fallback til search_startrecord
  */
 export async function fetchUltimateNorSearchRaw(
   eventId: number,
@@ -73,7 +86,7 @@ export async function fetchUltimateNorSearchRaw(
   language = "us",
   startRecord = 0
 ) {
-  const url =
+  const base =
     `https://live.ultimate.dk/desktop/front/data.php?` +
     `eventid=${eventId}` +
     `&mode=search` +
@@ -89,13 +102,27 @@ export async function fetchUltimateNorSearchRaw(
     `&search_distance=${distance ?? ""}` +
     `&search_category=` +
     `&search_time=Finish` +
-    `&search_sortby=[TIMEFIELD]` +
-    `&search_sorttype=ASC` +
-    `&results_startrecord=${startRecord}`;
+    `&search_sorttype=ASC`;
 
-  const res = await fetch(url, { headers: { Accept: "*/*" }, cache: "no-store" });
-  if (!res.ok) throw new Error(`Ultimate NOR search failed: ${res.status} ${res.statusText}`);
-  return res.text();
+  // 1) prøv med results_startrecord
+  {
+    const url = `${base}&results_startrecord=${startRecord}`;
+    const res = await fetch(url, { headers: ultimateHeaders(), cache: "no-store" });
+    if (!res.ok) throw new Error(`Ultimate NOR search failed: ${res.status} ${res.statusText}`);
+    const raw = await res.text();
+
+    // hvis den faktisk gir rader, returner
+    const rows = parseUltimateResults(raw);
+    if (rows.length > 0) return raw;
+  }
+
+  // 2) fallback: mange bruker search_startrecord
+  {
+    const url = `${base}&search_startrecord=${startRecord}`;
+    const res = await fetch(url, { headers: ultimateHeaders(), cache: "no-store" });
+    if (!res.ok) throw new Error(`Ultimate NOR search failed: ${res.status} ${res.statusText}`);
+    return res.text();
+  }
 }
 
 export async function fetchUltimateNorSearchAllRaw(
@@ -132,12 +159,3 @@ export async function fetchUltimateNorSearchAllRaw(
 
   return pages;
 }
-
-/**
- * Hvis advanced-search ikke pager med results_startrecord:
- * - prøv:
- *    &search_startrecord=${startRecord}
- *   eller:
- *    &start=${startRecord}
- * Sjekk network i devtools hos Ultimate.
- */

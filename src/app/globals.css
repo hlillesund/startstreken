@@ -1551,3 +1551,622 @@ body {
     padding-right: 12px;
   }
 }
+
+/* ============================================================
+   FRONT PAGE (cpn-home) – dansk/minimal look
+============================================================ */
+
+.cpn-home .cpn-home-hero {
+  border-bottom: 1px solid #1a1a1a;
+  padding: 56px 48px 56px;
+}
+
+.cpn-home-hero-grid {
+  display: grid;
+  grid-template-columns: 1.2fr 0.8fr;
+  gap: 40px;
+  align-items: start;
+}
+
+.cpn-home-title {
+  font-size: clamp(52px, 6vw, 88px);
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  text-transform: uppercase;
+  line-height: 0.92;
+  margin: 10px 0 14px;
+}
+
+.cpn-home-desc {
+  font-size: 14px;
+  line-height: 1.7;
+  color: #555;
+  max-width: 520px;
+  font-family: "DM Mono", monospace;
+  font-weight: 300;
+}
+
+.cpn-home-search {
+  margin-top: 26px;
+}
+
+.cpn-home-searchbox {
+  position: relative;
+}
+
+/* click catcher for mobile open */
+.cpn-home-mobile-catcher {
+  position: absolute;
+  inset: 0;
+  z-index: 10;
+  background: transparent;
+  border: none;
+}
+
+.cpn-home-results {
+  margin-top: 14px;
+  display: grid;
+  gap: 10px;
+  text-align: left;
+}
+
+.cpn-home-video {
+  display: grid;
+  gap: 14px;
+}
+
+.cpn-home-video-frame {
+  border: 1px solid #1a1a1a;
+  background: #fff;
+  overflow: hidden;
+  position: relative;
+  aspect-ratio: 4 / 3;
+}
+
+.cpn-home-video-el {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.cpn-home-video-overlay {
+  position: absolute;
+  inset: 0;
+  background: rgba(0,0,0,0.12);
+}
+
+.cpn-home-mini {
+  border: 1px solid #1a1a1a;
+  background: #fff;
+  padding: 16px 16px 14px;
+}
+
+.cpn-home-mini-label {
+  font-size: 10px;
+  font-family: "DM Mono", monospace;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: #888;
+  margin-bottom: 8px;
+}
+
+.cpn-home-mini-title {
+  font-size: 16px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  text-transform: uppercase;
+}
+
+.cpn-home-mini-meta {
+  margin-top: 6px;
+  font-size: 11px;
+  font-family: "DM Mono", monospace;
+  color: #888;
+}
+
+.cpn-home-mini-cta {
+  display: inline-block;
+  margin-top: 12px;
+  font-size: 10px;
+  font-family: "DM Mono", monospace;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: #1a1a1a;
+  text-decoration: none;
+  border-bottom: 1px solid rgba(26,26,26,0.25);
+}
+
+.cpn-home-section {
+  padding: 48px 48px 56px;
+  border-bottom: 1px solid #1a1a1a;
+}
+
+.cpn-home-section-head {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 18px;
+}
+
+.cpn-home-h2 {
+  font-size: 22px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  text-transform: uppercase;
+  margin: 0;
+}
+
+.cpn-home-p {
+  margin-top: 8px;
+  font-size: 12px;
+  font-family: "DM Mono", monospace;
+  color: #888;
+  line-height: 1.6;
+}
+
+.cpn-home-link {
+  font-size: 10px;
+  font-family: "DM Mono", monospace;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: #1a1a1a;
+  text-decoration: none;
+  border-bottom: 1px solid rgba(26,26,26,0.25);
+  padding-bottom: 2px;
+  white-space: nowrap;
+}
+
+.cpn-home-tools {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 14px;
+}
+
+.cpn-home-split {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 18px;
+}
+
+.cpn-home-card {
+  border: 1px solid #1a1a1a;
+  background: #fff;
+  padding: 18px;
+}
+
+.cpn-home-cardhead {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 14px;
+  padding-bottom: 14px;
+  border-bottom: 1px solid #e8e4df;
+  margin-bottom: 14px;
+}
+
+.cpn-home-list {
+  display: grid;
+  gap: 10px;
+}
+
+.cpn-home-listitem {
+  display: block;
+  text-decoration: none;
+  color: inherit;
+  border: 1px solid #e8e4df;
+  padding: 12px 12px;
+  transition: background 0.12s, border-color 0.12s;
+}
+
+.cpn-home-listitem:hover {
+  background: #f4f1ed;
+  border-color: #d7d2cc;
+}
+
+.cpn-home-li-title {
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+
+.cpn-home-li-meta {
+  margin-top: 4px;
+  font-size: 10px;
+  font-family: "DM Mono", monospace;
+  color: #888;
+}
+
+/* --------- Mobile --------- */
+@media (max-width: 900px) {
+  .cpn-home .cpn-home-hero,
+  .cpn-home-section {
+    padding-left: 16px;
+    padding-right: 16px;
+  }
+
+  .cpn-home-hero-grid {
+    grid-template-columns: 1fr;
+    gap: 18px;
+  }
+
+  .cpn-home-tools {
+    grid-template-columns: 1fr;
+  }
+
+  .cpn-home-split {
+    grid-template-columns: 1fr;
+  }
+
+  .cpn-home-video-frame {
+    aspect-ratio: 16 / 9;
+  }
+}
+
+/* ============================================================
+   MOBILE OVERLAY (cpn-mobile-*)
+============================================================ */
+.cpn-mobile-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  background: #fff;
+  display: flex;
+  flex-direction: column;
+}
+
+.cpn-mobile-topbar {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  border-bottom: 1px solid #1a1a1a;
+  background: #fff;
+  padding: 10px 12px;
+}
+
+.cpn-mobile-topbar-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.cpn-mobile-back {
+  background: transparent;
+  border: none;
+  font-size: 18px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.cpn-mobile-searchwrap {
+  flex: 1;
+}
+
+.cpn-mobile-filters {
+  border-bottom: 1px solid #e8e4df;
+  padding: 10px 12px;
+}
+
+.cpn-mobile-filterrow {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  padding-bottom: 2px;
+}
+
+.cpn-pill {
+  border: 1px solid #1a1a1a;
+  background: #fff;
+  padding: 8px 12px;
+  border-radius: 9999px;
+  font-size: 10px;
+  font-family: "DM Mono", monospace;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.cpn-mobile-results {
+  flex: 1;
+  overflow-y: auto;
+  padding: 12px 12px 16px;
+}
+
+.cpn-mobile-resultsgrid {
+  display: grid;
+  gap: 10px;
+}
+
+/* ============================================================
+   HERO VIDEO (cpn-hero-video) – video som bakgrunn
+============================================================ */
+
+.cpn-hero-video {
+  position: relative;
+  border-bottom: 1px solid #1a1a1a;
+  overflow: hidden;
+
+  /* høyde på hero */
+  min-height: clamp(520px, 70vh, 860px);
+}
+
+/* video dekker hele hero */
+.cpn-hero-video-el {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  z-index: 0;
+}
+
+/* mørk overlay for lesbar tekst */
+.cpn-hero-video-overlay {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.45);
+  z-index: 1;
+}
+
+/* innhold oppå video */
+.cpn-hero-video-content {
+  position: relative;
+  z-index: 2;
+  min-height: inherit;
+
+  display: flex;
+  align-items: flex-end;
+
+  padding: 64px 48px;
+}
+
+/* maks bredde så det ser premium ut */
+.cpn-hero-video-inner {
+  width: 100%;
+  max-width: 980px;
+}
+
+/* typografi på hero */
+.cpn-hero-video-title {
+  font-size: clamp(44px, 6vw, 86px);
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  text-transform: uppercase;
+  line-height: 0.92;
+  margin: 10px 0 14px;
+  color: #fff;
+}
+
+.cpn-hero-video-desc {
+  font-size: 14px;
+  line-height: 1.7;
+  max-width: 560px;
+  font-family: "DM Mono", monospace;
+  font-weight: 300;
+  color: rgba(255, 255, 255, 0.78);
+  margin-bottom: 18px;
+}
+
+/* CTA-kortet */
+.cpn-hero-primary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+
+  border: 1px solid rgba(255,255,255,0.22);
+  background: rgba(255,255,255,0.10);
+  backdrop-filter: blur(14px) saturate(140%);
+  -webkit-backdrop-filter: blur(14px) saturate(140%);
+
+  border-radius: 14px;
+  padding: 14px 16px;
+  text-decoration: none;
+  color: #fff;
+
+  box-shadow: 0 24px 60px rgba(0,0,0,0.35);
+  margin: 14px 0 18px;
+}
+
+.cpn-hero-primary-left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.cpn-hero-primary-icon {
+  width: 34px;
+  height: 34px;
+  border-radius: 9999px;
+  display: grid;
+  place-items: center;
+  background: rgba(255,255,255,0.14);
+  border: 1px solid rgba(255,255,255,0.20);
+}
+
+.cpn-hero-primary-title {
+  font-weight: 800;
+  letter-spacing: -0.02em;
+}
+
+.cpn-hero-primary-sub {
+  font-size: 11px;
+  font-family: "DM Mono", monospace;
+  opacity: 0.8;
+  margin-top: 3px;
+}
+
+.cpn-hero-primary-arrow {
+  font-size: 18px;
+  opacity: 0.9;
+}
+
+/* sekundær søk-del */
+.cpn-hero-secondary {
+  margin-top: 12px;
+}
+
+.cpn-hero-searchbox {
+  position: relative;
+  max-width: 640px;
+}
+
+/* desktop live results som “glass” */
+.cpn-hero-results {
+  margin-top: 12px;
+  display: grid;
+  gap: 10px;
+
+  max-width: 640px;
+  padding: 12px;
+
+  border: 1px solid rgba(255,255,255,0.18);
+  background: rgba(255,255,255,0.08);
+  backdrop-filter: blur(14px) saturate(140%);
+  -webkit-backdrop-filter: blur(14px) saturate(140%);
+  border-radius: 14px;
+}
+
+/* mobil */
+@media (max-width: 900px) {
+  .cpn-hero-video-content {
+    padding: 40px 16px;
+    align-items: flex-end;
+  }
+
+  .cpn-hero-video {
+    min-height: 72vh;
+  }
+}
+/* ============================================================
+   HERO ACTION BOXES (dansk/minimal, flat)
+============================================================ */
+
+.cpn-hero-actions {
+  margin-top: 18px;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  max-width: 720px;
+}
+
+.cpn-hero-action {
+  display: block;
+  text-decoration: none;
+  color: #1a1a1a;
+
+  border: 1px solid #1a1a1a;
+  background: #ffffff;
+
+  padding: 14px 14px 12px;
+  transition: background 120ms ease, transform 120ms ease, border-color 120ms ease;
+}
+
+.cpn-hero-action:hover {
+  background: #f4f1ed;
+  transform: translateY(-1px);
+}
+
+.cpn-hero-action-top {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+
+.cpn-hero-action-label {
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  text-transform: uppercase;
+}
+
+.cpn-hero-action-arrow {
+  color: #1a1a1a;
+}
+
+.cpn-hero-action-desc {
+  font-size: 11px;
+  font-family: "DM Mono", monospace;
+  color: #666;
+  line-height: 1.55;
+}
+
+/* mobil: stack */
+@media (max-width: 900px) {
+  .cpn-hero-actions {
+    grid-template-columns: 1fr;
+    max-width: 520px;
+  }
+
+}/* ============================================================
+   TILES (Verktøy for løpere) – dansk/minimal
+============================================================ */
+
+.cpn-tiles {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 14px;
+}
+
+@media (max-width: 900px) {
+  .cpn-tiles {
+    grid-template-columns: 1fr;
+  }
+}
+
+.cpn-tile {
+  display: block;
+  text-decoration: none;
+  color: inherit;
+
+  border: 1px solid #1a1a1a;
+  background: #fff;
+
+  padding: 16px;
+  transition: background 120ms ease, transform 120ms ease;
+}
+
+.cpn-tile:hover {
+  background: #f4f1ed;
+  transform: translateY(-1px);
+}
+
+.cpn-tile-top {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+.cpn-tile-icon {
+  width: 34px;
+  height: 34px;
+  border: 1px solid #1a1a1a;
+  display: grid;
+  place-items: center;
+}
+
+.cpn-tile-title {
+  font-weight: 800;
+  letter-spacing: -0.01em;
+  text-transform: uppercase;
+}
+
+.cpn-tile-desc {
+  font-size: 11px;
+  font-family: "DM Mono", monospace;
+  color: #666;
+  line-height: 1.6;
+}
+
+.cpn-tile-cta {
+  margin-top: 12px;
+  font-size: 10px;
+  font-family: "DM Mono", monospace;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: #1a1a1a;
+}

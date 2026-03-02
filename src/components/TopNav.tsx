@@ -58,7 +58,7 @@ export default function TopNav() {
    
         <div className={`mobile-menu ${open ? "open" : ""}`}>
           <Link href="/events" onClick={() => setOpen(false)}>Løp</Link>
-          <Link href="/shoes" onClick={() => setOpen(false)}>Skoguide</Link>
+          <Link href="/utovere" onClick={() => setOpen(false)}>Utøversøk</Link>
           <Link href="/calendar" onClick={() => setOpen(false)}>Kalender</Link>
           <Link href="/news" onClick={() => setOpen(false)}>Nyheter</Link>
           <Link href="/account" onClick={() => setOpen(false)}>Min side</Link>

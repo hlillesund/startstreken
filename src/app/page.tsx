@@ -104,7 +104,10 @@ export default function Home() {
   return (
     <div className="cpn-root cpn-home" style={{ paddingTop: "var(--topnav-h)" }}>
       {/* Header strip (samme som utøvere) */}
+      
       <header className="cpn-header">
+        <meta name="google-adsense-account" content="ca-pub-7553946899442750"></meta>
+
         <span className="cpn-logo">Startstreken</span>
         <span className="cpn-header-right">{year} Season</span>
       </header>

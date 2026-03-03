@@ -187,6 +187,8 @@ export default function UtoverePage() {
   return (
     <div className="cpn-root" style={{ paddingTop: "var(--topnav-h)" }}>
       <header className="cpn-header">
+                <meta name="google-adsense-account" content="ca-pub-7553946899442750"></meta>
+
         <span className="cpn-logo">Løpsresultater</span>
         <span className="cpn-header-right">{new Date().getFullYear()} Season</span>
       </header>

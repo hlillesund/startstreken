@@ -241,7 +241,7 @@ export default function UtoverePage() {
           </div>
           <div className="cpn-home-sections">
             <TopLeaderboards year={2026} onSelectAthlete={loadResults} />
-            <UpcomingRacesPlaceholder />
+        
           </div>
         </>
       )}

@@ -32,12 +32,7 @@ export default function TopNav() {
           {/* DESKTOP NAV */}
           <nav className="topnav-links desktop-nav">
 
-            <Link className="topnav-link" href="/utovere">Utøversøk</Link>
-            <Link className="topnav-link" href="/calendar">Kalender</Link>
-            <Link className="topnav-link" href="/news">Nyheter</Link>
-            <Link className="topnav-pill-outline" href="/account">
-              Min side
-            </Link>
+           
           </nav>
 
           {/* MOBILE BUTTON */}
@@ -57,11 +52,9 @@ export default function TopNav() {
       {/* MOBILE MENU */}
    
         <div className={`mobile-menu ${open ? "open" : ""}`}>
-          <Link href="/events" onClick={() => setOpen(false)}>Løp</Link>
+         
           <Link href="/utovere" onClick={() => setOpen(false)}>Utøversøk</Link>
-          <Link href="/calendar" onClick={() => setOpen(false)}>Kalender</Link>
-          <Link href="/news" onClick={() => setOpen(false)}>Nyheter</Link>
-          <Link href="/account" onClick={() => setOpen(false)}>Min side</Link>
+        
         </div>
  
     </header>

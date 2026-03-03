@@ -143,13 +143,7 @@ export default function Home() {
           <div className="cpn-hero-action-desc">PB · ranking · grafer · profiler</div>
         </a>
 
-        <a className="cpn-hero-action" href="/lop">
-          <div className="cpn-hero-action-top">
-            <span className="cpn-hero-action-label">Løp</span>
-            <span className="cpn-hero-action-arrow">→</span>
-          </div>
-          <div className="cpn-hero-action-desc">Søk etter løp · sted · distanse</div>
-        </a>
+        
         <a className="cpn-hero-action" href="/startnummer">
           <div className="cpn-hero-action-top">
             <span className="cpn-hero-action-label">Startnummer</span>
@@ -229,7 +223,7 @@ export default function Home() {
             <h2 className="cpn-home-h2">Verktøy for løpere</h2>
             <p className="cpn-home-p">Kalkulatorer og verktøy du bruker ofte.</p>
           </div>
-          <a className="cpn-home-link" href="/verktoy">Se alle →</a>
+         
         </div>
 
         <div className="cpn-tiles">
@@ -240,79 +234,17 @@ export default function Home() {
             href="/verktoy/pace-kalkulator"
           />
           <ToolTile
-            title="Estimer løpstider"
-            description="Hva er du god for på ulike distanser?"
+            title="Estimer løpstider og treningssoner"
+            description="Finn løps- og treningsfart med pulssoner"
             icon={<Flag className="h-5 w-5" />}
-            href="/verktoy/pace-kalkulator"
-          />
-          <ToolTile
-            title="Treningssoner"
-            description="Finn riktige soner for fart og puls"
-            icon={<Heart className="h-5 w-5" />}
-            href="/verktoy/pace-kalkulator"
+            href="/verktoy/predictor"
           />
         </div>
       </section>
 
-      <StartnummerCTA />
+ 
 
-      {/* =====================
-          ENKLE LISTER (samme boks-stil)
-      ===================== */}
-      <section className="cpn-home-section" style={{ borderBottom: "none" }}>
-        <div className="cpn-home-split">
-          <div className="cpn-home-card">
-            <div className="cpn-home-cardhead">
-              <div>
-                <div className="cpn-section-label" style={{ marginBottom: 10 }}>Oversikt</div>
-                <h2 className="cpn-home-h2">Kommende løp</h2>
-              </div>
-              <a className="cpn-home-link" href="/lop">Se flere →</a>
-            </div>
-
-            <div className="cpn-home-list">
-              <a className="cpn-home-listitem" href="/lop">
-                <div className="cpn-home-li-title">Bergen City Marathon</div>
-                <div className="cpn-home-li-meta">27. april · Maraton</div>
-              </a>
-              <a className="cpn-home-listitem" href="/lop">
-                <div className="cpn-home-li-title">Oslo Spring Run</div>
-                <div className="cpn-home-li-meta">4. mai · 10 km</div>
-              </a>
-              <a className="cpn-home-listitem" href="/lop">
-                <div className="cpn-home-li-title">Lofoten Ultra-Trail</div>
-                <div className="cpn-home-li-meta">18. mai · Terreng</div>
-              </a>
-            </div>
-          </div>
-
-          <div className="cpn-home-card">
-            <div className="cpn-home-cardhead">
-              <div>
-                <div className="cpn-section-label" style={{ marginBottom: 10 }}>Popularitet</div>
-                <h2 className="cpn-home-h2">Mest populære</h2>
-              </div>
-              <a className="cpn-home-link" href="/lop">Utforsk →</a>
-            </div>
-
-            <div className="cpn-home-list">
-              <a className="cpn-home-listitem" href="/lop">
-                <div className="cpn-home-li-title">Oslo Maraton</div>
-                <div className="cpn-home-li-meta">15 000+ deltakere</div>
-              </a>
-              <a className="cpn-home-listitem" href="/lop">
-                <div className="cpn-home-li-title">Birkebeinerløpet</div>
-                <div className="cpn-home-li-meta">10 000+ deltakere</div>
-              </a>
-              <a className="cpn-home-listitem" href="/lop">
-                <div className="cpn-home-li-title">Sentrumsløpet</div>
-                <div className="cpn-home-li-meta">8 000+ deltakere</div>
-              </a>
-            </div>
-          </div>
-        </div>
-      </section>
-
+     
       <div style={{ height: 24 }} />
     </div>
   );

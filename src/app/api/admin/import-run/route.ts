@@ -315,9 +315,14 @@ async function fetchEqResultsReportCsv(eventId: number, reportId: number) {
   }
 
   const header = rows[0].map((h) => stripBom(clean(h)).toLowerCase());
+    console.log("[eqtiming] FULL HEADER:", JSON.stringify(header));
+
   const idxBib = header.findIndex((h) => h.includes("startnumber"));
   const idxRace = header.findIndex((h) => h === "race");
   const idxTime = header.findIndex((h) => h.includes("total time"));
+    const idxDiff = header.findIndex((h) => h.includes("diff winner")); // NY
+  console.log("[eqtiming] idxBib:", idxBib, "idxRace:", idxRace, "idxTime:", idxTime, "idxDiff:", idxDiff);
+
 
   if (idxBib === -1 || idxRace === -1 || idxTime === -1) {
     throw new Error(
@@ -327,7 +332,7 @@ async function fetchEqResultsReportCsv(eventId: number, reportId: number) {
     );
   }
 
-  return { url, text, rows, header, idxBib, idxRace, idxTime };
+  return { url, text, rows, header, idxBib, idxRace, idxTime, idxDiff};
 }
 
 /* ---------------- ROUTE ---------------- */
@@ -641,7 +646,7 @@ if (sourceSlug === "eqtiming") {
 
   // 2) hent resultater fra report 347 (alltid)
   const reportId = EQ_RESULT_REPORT_ID; // 347
-  const { url: reportUrl, rows, idxBib, idxRace, idxTime, header } =
+  const { url: reportUrl, rows, idxBib, idxRace, idxTime, idxDiff, header } =
     await fetchEqResultsReportCsv(eventId, reportId);
 
   if (!rows || rows.length < 2) {
@@ -768,8 +773,12 @@ if (sourceSlug === "eqtiming") {
     const bib = clean(r[idxBib]);
     const raceName = clean(r[idxRace]);
     const timeStr = clean(r[idxTime]);
+        const diffWinner = idxDiff !== -1 ? clean(r[idxDiff]) : null; // NY
+
 
     if (!bib || !raceName || !timeStr) continue;
+    if (idxDiff !== -1 && !diffWinner) continue;
+
 
     const timeMs = parseTimeToMsLoose(timeStr);
     if (!timeMs) continue;

@@ -1,12 +1,9 @@
-// src/app/utovere/topp100/page.tsx
 import { prisma } from "@/lib/prisma";
 import { formatTime } from "@/components/utovere/utils";
 import Link from "next/link";
 
 const LABELS: Record<string, string> = { "5K": "5K", "10K": "10K", HM: "Halvmaraton", M: "Maraton" };
 const ALLOWED = new Set(["5K", "10K", "HM", "M"]);
-
-
 
 type Row = { athlete_id: string; display_name: string; gender: string; best_time_ms: bigint; rank: bigint };
 
@@ -51,7 +48,6 @@ export default async function Topp100Page({
 
   const mens = rows.filter((r) => r.gender === "M");
   const womens = rows.filter((r) => r.gender === "F");
-
   const CATEGORIES = ["5K", "10K", "HM", "M"];
 
   return (
@@ -66,7 +62,7 @@ export default async function Topp100Page({
           <div className="cpn-hero-eyebrow">Toppliste / {year}</div>
           <h1 className="cpn-hero-title">Topp 100 — {LABELS[category]}</h1>
         </div>
-        <Link href="/utovere" className="cpn-back">← Tilbake</Link>
+        <Link href="/utovere" className="cpn-back">&larr; Tilbake</Link>
       </div>
 
       <div style={{ padding: "0 24px 16px" }}>

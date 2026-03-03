@@ -257,21 +257,77 @@ const sourceRaceId = normRaceId(String(raceNameRaw));
       )`;
     })
     .filter(Boolean) as Prisma.Sql[];
+// 9.5) Slett eksisterende results for denne utøveren i alle berørte races
+  // slik at history-API alltid vinner over rapport 347
+  const allRaceUuids = Array.from(new Set(
+    rows
+      .map((r) => {
+        const event_uuid = eventIdMap.get(r.sourceEventId);
+        if (!event_uuid) return null;
+        return raceIdMap.get(`${event_uuid}|${r.sourceRaceId}`);
+      })
+      .filter(Boolean) as string[]
+  ));
 
-  // 10) Batch UPSERT results via SQL (insert + update i ett)
+ /// 9.5) Slett history-API-resultater for utøveren, men ikke rapport 347
+  if (allRaceUuids.length > 0) {
+    await prisma.results.deleteMany({
+      where: {
+        athlete_id: athlete.id,
+        race_id: { in: allRaceUuids },
+        NOT: { raw: { path: ["source"], equals: "eqtiming" } },
+      },
+    });
+  }
 
-  await prisma.$executeRaw(
-  Prisma.sql`
-    INSERT INTO public.results (race_id, athlete_id, time_ms, rank_overall, raw, distance_category)
-    VALUES ${Prisma.join(resultValues)}
-    ON CONFLICT (race_id, athlete_id)
-    DO UPDATE SET
-      time_ms = EXCLUDED.time_ms,
-      rank_overall = EXCLUDED.rank_overall,
-      raw = EXCLUDED.raw,
-      distance_category = EXCLUDED.distance_category;
-  `
-);
+  // Finn races som allerede har rapport 347-resultat — disse skal ikke overskrives
+  const racesWithReport347 = new Set(
+    (await prisma.results.findMany({
+      where: {
+        athlete_id: athlete.id,
+        race_id: { in: allRaceUuids },
+      },
+      select: { race_id: true },
+    })).map((r) => r.race_id)
+  );
+
+  // 10) Bare insert for races som ikke har rapport 347
+  const filteredResultValues = rows
+    .map((r) => {
+      const event_uuid = eventIdMap.get(r.sourceEventId);
+      if (!event_uuid) return null;
+      const race_uuid = raceIdMap.get(`${event_uuid}|${r.sourceRaceId}`);
+      if (!race_uuid) return null;
+      if (racesWithReport347.has(race_uuid)) return null; // rapport 347 vinner
+
+      const p = resolvePreset(r.sourceEventId, r.sourceRaceId);
+      const inferred = classifyEqDistanceCategoryFromItem(r.it);
+      const desired = applySanity((p?.distance_category ?? inferred ?? "OTHER") as DistanceCategory, r.timeMs, r.raceNameRaw);
+
+      return Prisma.sql`(
+        ${race_uuid}::uuid,
+        ${athlete.id}::uuid,
+        ${r.timeMs}::int,
+        ${r.it?.Plassering ?? null}::int,
+        ${r.it}::jsonb,
+        ${desired}::text
+      )`;
+    })
+    .filter(Boolean) as Prisma.Sql[];
+
+  if (filteredResultValues.length > 0) {
+    await prisma.$executeRaw(
+      Prisma.sql`
+        INSERT INTO public.results (race_id, athlete_id, time_ms, rank_overall, raw, distance_category)
+        VALUES ${Prisma.join(filteredResultValues)}
+        ON CONFLICT (race_id, athlete_id, time_ms)
+        DO UPDATE SET
+          rank_overall = EXCLUDED.rank_overall,
+          raw = EXCLUDED.raw,
+          distance_category = EXCLUDED.distance_category;
+      `
+    );
+  }
 
   const dbMs = Date.now() - tDb0;
   console.log("db ms", dbMs)

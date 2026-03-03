@@ -46,6 +46,7 @@ body {
   display: flex;
   align-items: center;
   height: var(--topnav-h);
+  
 }
 
 /* =====================
@@ -86,6 +87,7 @@ body {
   justify-content: center;
   align-items: center;
   flex: 1;
+  
 }
 
 .topnav-link {
@@ -94,6 +96,7 @@ body {
   font-size: 25px;
   font-weight: 500;
   opacity: 0.9;
+  
 }
 
 .topnav-link:hover {
@@ -769,7 +772,7 @@ body {
 }
 .cpn-stat-grid {
   display: grid;
-  grid-template-columns: repeat(6, 1fr);
+  grid-template-columns: repeat(5, 1fr);
   border: 1px solid #1a1a1a;
 }
 @media (max-width: 900px) {
@@ -787,7 +790,7 @@ body {
   border-right: 1px solid #1a1a1a;
   border-bottom: 1px solid #1a1a1a;
 }
-.cpn-stat:nth-child(6n) {
+.cpn-stat:nth-child(5n) {
   border-right: none;
 }
 .cpn-stat-label {
@@ -842,6 +845,19 @@ body {
   align-items: center;
   background: #fff;
 }
+.cpn-leaderboard-gender-label{
+  padding: 16px 20px;
+  font-size: 12px;
+  font-family: "DM Mono", monospace;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: #888;
+  border-right: 1px solid #e0dcd8;
+  display: flex;
+  align-items: center;
+
+}
+
 .cpn-rank-val {
   padding: 16px 20px;
   font-size: 20px;
@@ -2048,7 +2064,7 @@ body {
 .cpn-hero-actions {
   margin-top: 18px;
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: 1fr 1fr 1fr;
   gap: 12px;
   max-width: 720px;
 }
@@ -2205,3 +2221,4 @@ body {
     overflow-wrap: anywhere;  /* aldri klipp */
   }
 }
+

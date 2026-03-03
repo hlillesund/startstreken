@@ -134,6 +134,8 @@ export async function POST(req: Request) {
   const idxBib = header.findIndex((h) => h.includes("startnumber"));
   const idxRace = header.findIndex((h) => h === "race");
   const idxTime = header.findIndex((h) => h.includes("total time"));
+    const idxDiff = header.findIndex((h) => h.includes("diff winner")); // NY
+
 
   if (idxBib === -1 || idxRace === -1 || idxTime === -1) {
     return Response.json({ error: "Missing required columns", header });
@@ -157,8 +159,12 @@ export async function POST(req: Request) {
     const bib = clean(r[idxBib]);
     const raceName = clean(r[idxRace]);
     const timeStr = clean(r[idxTime]);
+        const diffWinner = idxDiff !== -1 ? clean(r[idxDiff]) : null; // NY
+
 
     if (!bib || !raceName || !timeStr) continue;
+        if (idxDiff !== -1 && !diffWinner) continue;
+
 
     const timeMs = parseTimeToMs(timeStr);
     if (!timeMs) continue;

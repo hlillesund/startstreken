@@ -150,6 +150,13 @@ export default function Home() {
           </div>
           <div className="cpn-hero-action-desc">Søk etter løp · sted · distanse</div>
         </a>
+        <a className="cpn-hero-action" href="/startnummer">
+          <div className="cpn-hero-action-top">
+            <span className="cpn-hero-action-label">Startnummer</span>
+            <span className="cpn-hero-action-arrow">→</span>
+          </div>
+          <div className="cpn-hero-action-desc">Søk etter løp · sted · distanse</div>
+        </a>
       </div>
     </div>
   </div>

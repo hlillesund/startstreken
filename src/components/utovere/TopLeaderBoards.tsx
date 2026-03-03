@@ -1,108 +1,104 @@
 "use client";
 
-import React, { useEffect, useMemo, useState } from "react";
-import type { DistanceCategory, LeaderboardRow } from "./types";
-import { formatDate, formatTime } from "./utils";
+import { useEffect, useState } from "react";
+import { formatTime } from "./utils";
+import type { AthleteHit } from "./types";
 
-const CATS: { key: Exclude<DistanceCategory, "OTHER">; label: string; long: string }[] = [
-  { key: "5K", label: "5K", long: "5 Kilometer" },
-  { key: "10K", label: "10K", long: "10 Kilometer" },
-  { key: "HM", label: "HM", long: "Halvmaraton" },
-  { key: "M", label: "MAR", long: "Maraton" },
-];
+const CATEGORIES = ["5K", "10K", "HM", "M"] as const;
+const LABELS: Record<string, string> = { "5K": "5K", "10K": "10K", HM: "Halvmaraton", M: "Maraton" };
 
-function catHref(cat: Exclude<DistanceCategory, "OTHER">) {
-  return `/utovere/ranking/${encodeURIComponent(cat)}`;
+type Entry = { athlete_id: string; display_name: string; best_time_ms: number; rank: number };
+type CategoryData = { M: Entry[]; F: Entry[] };
+type LeaderboardData = Record<string, CategoryData>;
+
+interface Props {
+  year: number;
+  onSelectAthlete?: (athlete: AthleteHit) => void;
 }
 
-export default function TopLeaderboards({ year = new Date().getFullYear() }: { year?: number }) {
+export default function TopLeaderboards({ year, onSelectAthlete }: Props) {
+  const [data, setData] = useState<LeaderboardData | null>(null);
   const [loading, setLoading] = useState(true);
-  const [data, setData] = useState<Record<string, LeaderboardRow[]>>({});
-  const [err, setErr] = useState<string | null>(null);
+  const [activeCategory, setActiveCategory] = useState<string>("HM");
 
   useEffect(() => {
-    let cancelled = false;
-    setLoading(true);
-    setErr(null);
-
-    Promise.all(
-      CATS.map(async (c) => {
-        const res = await fetch(`/api/leaderboards?category=${encodeURIComponent(c.key)}&year=${year}&limit=3`, {
-          cache: "no-store",
-        });
-        const json = await res.json();
-        return [c.key, (json?.rows ?? []) as LeaderboardRow[]] as const;
-      })
-    )
-      .then((pairs) => {
-        if (cancelled) return;
-        const obj: Record<string, LeaderboardRow[]> = {};
-        for (const [k, rows] of pairs) obj[k] = rows;
-        setData(obj);
-      })
-      .catch(() => {
-        if (!cancelled) setErr("Klarte ikke å laste ranking.");
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false);
-      });
-
-    return () => {
-      cancelled = true;
-    };
+    fetch(`/api/leaderboards?year=${year}`)
+      .then((r) => r.json())
+      .then((d) => d.ok && setData(d.results))
+      .finally(() => setLoading(false));
   }, [year]);
 
-  const headerRight = useMemo(() => `${year}`, [year]);
+  const catData = data?.[activeCategory];
 
   return (
-    <section className="cpn-leaderboards">
-      <div className="cpn-leaderboards-head">
-        <div className="cpn-section-label" style={{ marginBottom: 0 }}>
-          Ranking — topp 3 per distanse
-        </div>
-        <div className="cpn-leaderboards-year">{headerRight}</div>
+    <div className="cpn-leaderboard">
+      <div className="cpn-section-label">Topplistene {year}</div>
+
+      <div className="cpn-tabs" style={{ marginBottom: 16 }}>
+        {CATEGORIES.map((cat) => (
+          <button
+            key={cat}
+            className={`cpn-tab${activeCategory === cat ? " active" : ""}`}
+            onClick={() => setActiveCategory(cat)}
+          >
+            {cat === "HM" ? "HM" : cat === "M" ? "MAR" : cat}
+          </button>
+        ))}
       </div>
 
-      {err && <div className="cpn-leaderboards-error">{err}</div>}
+      {loading && <p className="cpn-empty">Laster toppliste…</p>}
 
-      <div className="cpn-leaderboards-grid">
-        {CATS.map((c) => {
-          const rows = data[c.key] ?? [];
-          return (
-            <a key={c.key} className="cpn-lb-card" href={catHref(c.key)} aria-label={`Se topp 100 for ${c.long}`}>
-              <div className="cpn-lb-card-top">
-                <div>
-                  <div className="cpn-lb-title">{c.long}</div>
-                  <div className="cpn-lb-sub">Klikk for topp 100</div>
+      {!loading && catData && (
+        <>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+            {(["M", "F"] as const).map((gender) => (
+              <div key={gender} className="cpn-leaderboard-gender">
+                <div className="cpn-leaderboard-gender-label">
+                  {gender === "M" ? "Herrer" : "Damer"}
                 </div>
-                <div className="cpn-lb-pill">{c.label}</div>
-              </div>
-
-              <div className="cpn-lb-list">
-                {loading && (
-                  <>
-                    <div className="cpn-lb-skel" />
-                    <div className="cpn-lb-skel" />
-                    <div className="cpn-lb-skel" />
-                  </>
-                )}
-
-                {!loading && rows.length === 0 && <div className="cpn-lb-empty">Ingen data</div>}
-
-                {!loading &&
-                  rows.slice(0, 3).map((r) => (
-                    <div key={r.athlete_id} className="cpn-lb-row">
-                      <div className="cpn-lb-rank">#{r.rank}</div>
-                      <div className="cpn-lb-name">{r.display_name}</div>
-                      <div className="cpn-lb-time">{formatTime(r.best_time_ms)}</div>
-                      <div className="cpn-lb-meta">{r.best_date ? formatDate(r.best_date) : "—"}</div>
+                <div className="cpn-table">
+                  <div className="cpn-table-head">
+                    <div className="cpn-th" style={{ width: 32 }}>#</div>
+                    <div className="cpn-th">Navn</div>
+                    <div className="cpn-th" style={{ textAlign: "right" }}>Tid</div>
+                  </div>
+                  {catData[gender].length === 0 && (
+                    <div style={{ padding: "12px 16px", fontSize: 12, color: "#aaa" }}>Ingen data</div>
+                  )}
+                  {catData[gender].map((entry) => (
+                    <div
+                      key={entry.athlete_id}
+                      className="cpn-tr"
+                      style={{ cursor: onSelectAthlete ? "pointer" : "default" }}
+                      onClick={() =>
+                        onSelectAthlete?.({
+                          id: entry.athlete_id,
+                          display_name: entry.display_name,
+                          birth_year: null,
+                          gender,
+                        })
+                      }
+                    >
+                      <div className="cpn-td" style={{ width: 32, color: "#888" }}>{entry.rank}</div>
+                      <div className="cpn-td">{entry.display_name}</div>
+                      <div className="cpn-td">
+                        <span className="cpn-time">{formatTime(entry.best_time_ms)}</span>
+                      </div>
                     </div>
                   ))}
+                </div>
               </div>
-            </a>
-          );
-        })}
-      </div>
-    </section>
+            ))}
+          </div>
+          <a
+            href={`/utovere/topp100?category=${activeCategory}&year=${year}`}
+            className="cpn-topp100-link"
+            style={{ display: "block", marginTop: 16, textAlign: "center", fontSize: 13, color: "#888" }}
+          >
+            Se topp 100 &rarr;
+          </a>
+        </>
+      )}
+    </div>
   );
 }

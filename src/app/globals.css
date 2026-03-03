@@ -790,9 +790,8 @@ body {
   border-right: 1px solid #1a1a1a;
   border-bottom: 1px solid #1a1a1a;
 }
-.cpn-stat:nth-child(5n) {
-  border-right: none;
-}
+/* riktig "hver N-te" uten border-right */
+.cpn-stat:nth-child(5n) { border-right: none; }
 .cpn-stat-label {
   font-size: 9px;
   font-family: "DM Mono", monospace;

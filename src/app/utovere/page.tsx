@@ -356,8 +356,7 @@ export default function UtoverePage() {
           {/* 5. NØKKELTALL */}
           <div className="cpn-stats-section">
             <div className="cpn-section-label">{activeFilt.long} — Nøkkeltall</div>
-            <div className="cpn-stat-grid" style={{ gridTemplateColumns: "repeat(5, 1fr)" }}>
-              <div className="cpn-stat">
+<div className="cpn-stat-grid">              <div className="cpn-stat">
                 <div className="cpn-stat-label">Antall</div>
                 <div className="cpn-stat-value">{trendStats.count}</div>
                 <div className="cpn-stat-hint">resultater</div>

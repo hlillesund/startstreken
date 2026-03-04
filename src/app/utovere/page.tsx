@@ -198,7 +198,7 @@ export default function UtoverePage() {
         <div className="cpn-hero">
           <div>
             <div className="cpn-hero-eyebrow">Database / Søk</div>
-            <h1 className="cpn-hero-title">Utøvere</h1>
+            <h1 className="cpn-hero-title">Utøversøk</h1>
           </div>
           <p className="cpn-hero-desc">Søk etter en utøver og se resultater på tvers av løp, distanser og sesonger.</p>
         </div>

@@ -7,7 +7,6 @@ export type ImportOverride = {
   event_name?: string | null;
   start_date?: string | null; // "YYYY-MM-DD"
   location?: string | null;
-
   race_name?: string | null;
   distance_m?: number | null;
   distance_category?: DistanceCategory | null;
@@ -28,8 +27,10 @@ export async function applyOverrides(args: {
   override: ImportOverride;
 }) {
   const o = args.override ?? {};
-  const hasEventOverride = Boolean(o.event_name || o.start_date || o.location);
-  const hasRaceOverride = Boolean(o.race_name || o.distance_m !== null || o.distance_category);
+
+  const hasEventOverride = o.event_name != null || o.start_date != null || o.location != null;
+  const hasRaceOverride =
+    o.race_name != null || o.distance_m !== undefined || o.distance_category != null;
 
   if (!hasEventOverride && !hasRaceOverride) {
     return { applied: false, eventUpdated: false, raceUpdated: false, resultsUpdated: 0 };
@@ -49,29 +50,34 @@ export async function applyOverrides(args: {
   });
 
   if (!eventRow) {
-    return { applied: false, eventUpdated: false, raceUpdated: false, resultsUpdated: 0, note: "Event not found yet" };
+    return {
+      applied: false,
+      eventUpdated: false,
+      raceUpdated: false,
+      resultsUpdated: 0,
+      note: "Event not found yet",
+    };
   }
 
   let eventUpdated = false;
+
   if (hasEventOverride) {
     await prisma.events.update({
       where: { id: eventRow.id },
       data: {
-        name: o.event_name ?? undefined,
-        start_date: toDateOnly(o.start_date) ?? undefined,
-        location: o.location ?? undefined,
+        ...(o.event_name != null && { name: o.event_name }),
+        ...(o.start_date !== undefined && { start_date: toDateOnly(o.start_date) }),
+        ...(o.location !== undefined && { location: o.location }),
         updated_at: new Date(),
       },
     });
     eventUpdated = true;
   }
 
-  // Race override krever at vi vet hvilken race det gjelder.
-  // For raceresult/ultimate/eq kan du gi sourceRaceId (vi bygger det i import-run for RR).
   let raceUpdated = false;
   let resultsUpdated = 0;
 
-  if (hasRaceOverride && args.sourceRaceId) {
+  if (hasRaceOverride && args.sourceRaceId != null && args.sourceRaceId !== "") {
     const raceRow = await prisma.races.findUnique({
       where: {
         event_id_source_race_id: {
@@ -86,13 +92,13 @@ export async function applyOverrides(args: {
       await prisma.races.update({
         where: { id: raceRow.id },
         data: {
-          name: o.race_name ?? undefined,
-          distance_m: o.distance_m ?? undefined,
+          ...(o.race_name != null && { name: o.race_name }),
+          ...(o.distance_m !== undefined && { distance_m: o.distance_m }),
         },
       });
       raceUpdated = true;
 
-      if (o.distance_category) {
+      if (o.distance_category != null) {
         const res = await prisma.results.updateMany({
           where: { race_id: raceRow.id },
           data: { distance_category: o.distance_category },

@@ -37,6 +37,20 @@ model eq_startlist_entries {
   @@schema("public")
 }
 
+model event_series {
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name       String
+  slug       String   @unique
+  location   String?
+  country    String?  @default("NO")
+  notes      String?
+  created_at DateTime @default(now()) @db.Timestamptz(6)
+  updated_at DateTime @default(now()) @db.Timestamptz(6)
+  events     events[]
+ 
+  @@schema("public")
+}
+
 model import_presets {
   id                String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   source_id         String    @db.Uuid
@@ -459,6 +473,7 @@ model races {
   source_race_id String?
   name           String
   distance_m     Int?
+  distance_category_override  String?
   created_at     DateTime  @default(now()) @db.Timestamptz(6)
   events         events    @relation(fields: [event_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
   results        results[]
@@ -499,20 +514,23 @@ model athletes {
 }
 
 model events {
-  id              String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  source_id       String    @db.Uuid
+  id              String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  source_id       String        @db.Uuid
   source_event_id String
   name            String
-  start_date      DateTime? @db.Date
+  start_date      DateTime?     @db.Date
   location        String?
   pretty_url      String?
-  created_at      DateTime  @default(now()) @db.Timestamptz(6)
-  updated_at      DateTime  @default(now()) @db.Timestamptz(6)
-  sources         sources   @relation(fields: [source_id], references: [id], onUpdate: NoAction)
+  series_id       String?       @db.Uuid                          // ← ADD HERE
+  created_at      DateTime      @default(now()) @db.Timestamptz(6)
+  updated_at      DateTime      @default(now()) @db.Timestamptz(6)
+  sources         sources       @relation(fields: [source_id], references: [id], onUpdate: NoAction)
+  event_series    event_series? @relation(fields: [series_id], references: [id], onDelete: SetNull, onUpdate: Cascade)  // ← ADD HERE
   races           races[]
 
   @@unique([source_id, source_event_id])
   @@index([source_id], map: "events_source_idx")
+  @@index([series_id], map: "idx_events_series")   // ← ADD HERE
   @@schema("public")
 }
 
@@ -535,6 +553,7 @@ model results {
   athlete_id        String   @db.Uuid
   time_ms           Int
   rank_overall      Int?
+  rank_gender       Int?
   bib               String?
   club              String?
   source_result_id  String?
@@ -615,6 +634,63 @@ model custom_oauth_providers {
   @@schema("auth")
 }
 
+model public_sessions {
+  id         String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  user_id    String       @db.Uuid
+  expires_at DateTime     @db.Timestamptz(6)
+  created_at DateTime     @default(now()) @db.Timestamptz(6)
+  users      public_users @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([expires_at], map: "idx_sessions_expires_at")
+  @@index([user_id], map: "idx_sessions_user_id")
+  @@map("sessions")
+  @@schema("public")
+}
+
+model public_users {
+  id                      String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  strava_athlete_id       BigInt            @unique
+  display_name            String?
+  avatar_url              String?
+  created_at              DateTime          @default(now()) @db.Timestamptz(6)
+  updated_at              DateTime          @default(now()) @db.Timestamptz(6)
+  strava_access_token     String?
+  strava_refresh_token    String?
+  strava_token_expires_at DateTime?         @db.Timestamptz(6)
+  strava_has_activity     Boolean?          @default(false)
+  strava_last_activity_at DateTime?         @db.Timestamptz(6)
+  bib_listings            bib_listings[]
+  sessions                public_sessions[]
+
+  @@map("users")
+  @@schema("public")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model bib_listings {
+  id             String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  type           bib_listing_type
+  event          String
+  distance       String
+  race_date      DateTime?        @db.Date
+  price          Int
+  bib            String?
+  reason         String?
+  urgent         Boolean          @default(false)
+  seller_user_id String           @db.Uuid
+  contact        String?
+  status         String           @default("active")
+  created_at     DateTime         @default(now()) @db.Timestamptz(6)
+  updated_at     DateTime         @default(now()) @db.Timestamptz(6)
+  users          public_users     @relation(fields: [seller_user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([created_at(sort: Desc)], map: "idx_bib_listings_created_at")
+  @@index([event], map: "idx_bib_listings_event")
+  @@index([seller_user_id], map: "idx_bib_listings_seller")
+  @@index([type], map: "idx_bib_listings_type")
+  @@schema("public")
+}
+
 enum aal_level {
   aal1
   aal2
@@ -683,4 +759,11 @@ enum one_time_token_type {
   phone_change_token
 
   @@schema("auth")
+}
+
+enum bib_listing_type {
+  sell
+  buy
+
+  @@schema("public")
 }

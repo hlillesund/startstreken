@@ -6,15 +6,24 @@ export type AthleteHit = {
 };
 
 export type DistanceCategory = "5K" | "10K" | "HM" | "M" | "OTHER";
+// Replace your AthleteResultRow interface in src/components/utovere/types.ts
 
-export type AthleteResultRow = {
-  start_date: string | null;
-  event_name: string;
-  race_name: string;
-  time_ms: number;
-  club?: string | null;
-  distance_category?: DistanceCategory | null;
-};
+export interface AthleteResultRow {
+  race_id:            string;
+  race_name:          string;
+  event_name:         string;
+  start_date:         string | null;
+  location:           string | null;
+  time_ms:            number;
+  distance_category:  string | null;
+  club:               string | null;
+  bib:                string | null;
+  rank_overall:       number | null;
+  rank_gender:        number | null;
+  total_finishers:    number | null;
+  total_finishers_m:  number | null;
+  total_finishers_f:  number | null;
+}
 
 export type LeaderboardRow = {
   rank: number;

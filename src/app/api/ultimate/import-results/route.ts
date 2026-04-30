@@ -1,4 +1,6 @@
 // src/app/api/ultimate/import/route.ts
+import { importUltimateBatch } from "@/lib/ultimate-batch-import";
+import { applyOverrides } from "@/lib/apply-overrides";
 import { prisma } from "@/lib/prisma";
 import {
   fetchUltimateResultsAllRaw,
@@ -129,85 +131,21 @@ export async function POST(req: Request) {
     },
   });
 
-  let imported = 0;
-  let linked = 0;
-  let skipped = 0;
-  let failed = 0;
+const { imported, linked, skipped } = await importUltimateBatch({
+  rows,
+  raceId: raceRow.id,
+  distanceCategory: distanceCategory ?? null,
+  sourceId: source.id,
+});
 
-  for (let i = 0; i < rows.length; i++) {
-    const r = rows[i];
+const override = body.override ?? {};
 
-    try {
-      if (!r.name || !r.timeStr) {
-        skipped++;
-        continue;
-      }
-
-      const timeMs = timeToMs(r.timeStr);
-      if (!timeMs) {
-        skipped++;
-        continue;
-      }
-
-      // syntetisk identity-key (stabil nok for merge, men ikke perfekt)
-      const sourcePersonId = `synt:${shortHash(
-        `${r.name}|${r.club ?? ""}|${r.category ?? ""}`
-      )}`;
-
-      const resolved = await resolveAthleteForIdentity({
-        sourceSlug: "ultimate",
-        sourcePersonId,
-        displayName: r.name,
-        gender: null,
-        birthYear: null,
-        club: r.club,
-        payload: r,
-      });
-
-      if (resolved.linked) linked++;
-
-      await prisma.results.upsert({
-        where: {
-          race_id_athlete_id_time_ms: {
-            race_id: raceRow.id,
-            athlete_id: resolved.athleteId,
-            time_ms: timeMs,
-          },
-        },
-        update: {
-          rank_overall: r.rank,
-          bib: r.bib,
-          club: r.club,
-          raw: r as any,
-          distance_category: distanceCategory ?? undefined,
-        },
-        create: {
-          race_id: raceRow.id,
-          athlete_id: resolved.athleteId,
-          time_ms: timeMs,
-          rank_overall: r.rank,
-          bib: r.bib,
-          club: r.club,
-          raw: r as any,
-          distance_category: distanceCategory,
-        },
-      });
-
-      imported++;
-    } catch (e) {
-      failed++;
-      if (failed <= 5) {
-        console.error("[ultimate] row failed:", r, e);
-      }
-    }
-
-    if (i > 0 && i % 500 === 0) {
-      console.log(
-        `[ultimate] progress ${i}/${rows.length} imported=${imported} skipped=${skipped} failed=${failed}`
-      );
-    }
-  }
-
+await applyOverrides({
+  sourceSlug: "ultimate",
+  sourceEventId: String(eventId),
+  sourceRaceId: String(distance),
+  override,
+});
   return Response.json({
     ok: true,
     mode: onlyNor ? "search:NOR" : "results:ALL",
@@ -218,7 +156,6 @@ export async function POST(req: Request) {
     imported,
     linked,
     skipped,
-    failed,
     presetUsed: Boolean(preset),
     preset: preset
       ? {

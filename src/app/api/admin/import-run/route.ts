@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma";
+import { importEqStartlistBatch } from "@/lib/eq-batch-import";
 import { applyOverrides, ImportOverride } from "@/lib/apply-overrides";
-
+import { importUltimateBatch } from "@/lib/ultimate-batch-import";
 import { fetchRaceResultListAllRaw } from "@/lib/raceresult";
 import { parseRaceResultListFromPages } from "@/lib/raceresult-parse";
 import { resolveAthleteForIdentity } from "@/lib/athlete-merge";
@@ -234,55 +235,8 @@ async function importEqStartlistIntoDb(sourceId: string, eventId: number) {
       deduped.push(p);
     }
 
-    for (const p of deduped) {
-      const name = getNameFromStartlist(p);
-      const uid = getUidFromStartlist(p);
-      const bib = getBibFromStartlist(p);
-      if (!name || !uid || !bib) continue;
-
-      const className = getClassNameFromStartlist(p);
-
-      const athlete = await prisma.athletes.upsert({
-        where: { display_name_norm: normName(name) },
-        update: { display_name: name },
-        create: { display_name: name, display_name_norm: normName(name) },
-        select: { id: true },
-      });
-
-      await prisma.athlete_identities.upsert({
-        where: {
-          source_id_source_person_id: {
-            source_id: sourceId,
-            source_person_id: uid,
-          },
-        },
-        update: { athlete_id: athlete.id },
-        create: { athlete_id: athlete.id, source_id: sourceId, source_person_id: uid },
-      });
-
-      await prisma.eq_startlist_entries.upsert({
-        where: {
-          source_id_event_id_bib: {
-            source_id: sourceId,
-            event_id: eventId,
-            bib,
-          },
-        },
-        update: {
-          participant_uid: uid,
-          class_name: className,
-        },
-        create: {
-          source_id: sourceId,
-          event_id: eventId,
-          bib,
-          participant_uid: uid,
-          class_name: className,
-        },
-      });
-
-      imported++;
-    }
+const result = await importEqStartlistBatch(sourceId, eventId, deduped);
+imported += result.imported;
 
     pages++;
     startAt += pageSize;
@@ -537,62 +491,12 @@ const raceRow = await prisma.races.upsert({
 });
 
   // 4) importer resultater
-  let imported = 0;
-  let skipped = 0;
-
-  for (const r of rows) {
-    if (!r.name || !r.timeStr) { skipped++; continue; }
-
-    const timeMs = timeToMs(r.timeStr);
-    if (!timeMs) { skipped++; continue; }
-
-    const personId = `ult:${eventId}:${r.name}`;
-
-    const resolved = await resolveAthleteForIdentity({
-      sourceSlug: "ultimate",
-      sourcePersonId: personId,
-      displayName: r.name,
-      club: r.club ?? null,
-      payload: r,
-    });
-
-    await prisma.results.upsert({
-      where: {
-        race_id_athlete_id_time_ms: {
-          race_id: raceRow.id,
-          athlete_id: resolved.athleteId,
-          time_ms: timeMs,
-        },
-      },
-      update: {
-        rank_overall: r.rank ?? null,
-        bib: r.bib ?? null,
-        club: r.club ?? null,
-        raw: r as any,
-        distance_category: desiredCategory,
-      },
-      create: {
-        race_id: raceRow.id,
-        athlete_id: resolved.athleteId,
-        time_ms: timeMs,
-        rank_overall: r.rank ?? null,
-        bib: r.bib ?? null,
-        club: r.club ?? null,
-        raw: r as any,
-        distance_category: desiredCategory,
-      },
-    });
-
-    imported++;
-  }
-
-  // 5) sikkerhets-nett: hvis category ble valgt i admin, oppdater ALLE results (i tilfelle noen ble skrevet før)
-  if (desiredCategory) {
-    await prisma.results.updateMany({
-      where: { race_id: raceRow.id },
-      data: { distance_category: desiredCategory },
-    });
-  }
+  const { imported, skipped } = await importUltimateBatch({
+  rows,
+  raceId: raceRow.id,
+  distanceCategory: desiredCategory ?? null,
+  sourceId: source.id,
+});
 
   return Response.json({
     ok: true,
@@ -623,7 +527,21 @@ function normRaceId(s: string) {
 if (sourceSlug === "eqtiming") {
   const { eventId } = body.params;
 
-  // 0) sørg for events-row finnes
+const rawSample = await fetchEqStartlistPage(eventId, 1, 1) as Record<string, any>;
+const firstItem = rawSample?.Items?.["0"] ?? Object.values(rawSample?.Items ?? {})[0] ?? null;
+const arrangement = firstItem?.Arrangement ?? null;
+
+  const apiEventName = arrangement?.Navn?.trim() ?? null;
+  const apiEventDate = arrangement?.Dato
+    ? arrangement.Dato.slice(0, 10)   // "2026-03-23"
+    : null;
+
+  // Override > API > placeholder
+  const desiredName     = (override as any).event_name ?? apiEventName ?? `EQTiming event ${eventId}`;
+  const desiredDate     = (override as any).start_date ?? apiEventDate ?? null;
+  const desiredLocation = (override as any).location ?? null;
+
+  // 0) upsert events row with real name
   const eventRow = await prisma.events.upsert({
     where: {
       source_id_source_event_id: {
@@ -631,18 +549,28 @@ if (sourceSlug === "eqtiming") {
         source_event_id: String(eventId),
       },
     },
-    update: { updated_at: new Date() },
-    create: {
-      source_id: source.id,
-      source_event_id: String(eventId),
-      name: `EQTiming event ${eventId}`,
+    update: {
+      name:       desiredName,
+      start_date: desiredDate ? new Date(desiredDate) : undefined,
+      ...(desiredLocation ? { location: desiredLocation } : {}),
       updated_at: new Date(),
+    },
+    create: {
+      source_id:       source.id,
+      source_event_id: String(eventId),
+      name:            desiredName,
+      start_date:      desiredDate ? new Date(desiredDate) : null,
+      location:        desiredLocation,
+      updated_at:      new Date(),
     },
     select: { id: true },
   });
-
   // 1) importer startliste (bygger eq_startlist_entries + identiteter)
   const startlist = await importEqStartlistIntoDb(source.id, eventId);
+
+  const rawFirstPage = await fetchEqStartlistPage(eventId, 1, 1);
+console.log("[eqtiming] raw response keys:", Object.keys(rawFirstPage ?? {}));
+console.log("[eqtiming] raw sample:", JSON.stringify(rawFirstPage).slice(0, 500));
 
   // 2) hent resultater fra report 347 (alltid)
   const reportId = EQ_RESULT_REPORT_ID; // 347

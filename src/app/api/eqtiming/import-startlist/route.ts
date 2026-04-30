@@ -1,4 +1,6 @@
 // src/app/api/eqtiming/import-startlist/route.ts
+import { importEqStartlistBatch } from "@/lib/eq-batch-import";
+
 import { prisma } from "@/lib/prisma";
 import { fetchEqStartlistPage } from "@/lib/eqtiming-startlist";
 
@@ -121,59 +123,8 @@ export async function POST(req: Request) {
       console.log("Deduped items on first page:", { before: items.length, after: deduped.length });
     }
 
-    for (const p of deduped) {
-      const name = getName(p);
-      const uid = getUid(p);
-      if (!name || !uid) continue;
-
-      const bib = getBib(p);
-      if (!bib) continue;
-
-      const className = getClassName(p);
-
-      // 1) upsert athlete (navn -> athlete)
-      const athlete = await prisma.athletes.upsert({
-        where: { display_name_norm: normName(name) },
-        update: { display_name: name },
-        create: { display_name: name, display_name_norm: normName(name) },
-      });
-
-      // 2) upsert identity (eq uid -> athlete)
-      await prisma.athlete_identities.upsert({
-        where: {
-          source_id_source_person_id: {
-            source_id: source.id,
-            source_person_id: uid,
-          },
-        },
-        update: { athlete_id: athlete.id },
-        create: { athlete_id: athlete.id, source_id: source.id, source_person_id: uid },
-      });
-
-      // 3) upsert startlist index (eventId + bib -> uid)
-      await prisma.eq_startlist_entries.upsert({
-        where: {
-          source_id_event_id_bib: {
-            source_id: source.id,
-            event_id: eventId,
-            bib,
-          },
-        },
-        update: {
-          participant_uid: uid,
-          class_name: className,
-        },
-        create: {
-          source_id: source.id,
-          event_id: eventId,
-          bib,
-          participant_uid: uid,
-          class_name: className,
-        },
-      });
-
-      totalImported++;
-    }
+const result = await importEqStartlistBatch(source.id, eventId, deduped);
+totalImported += result.imported;
 
     pages++;
     startAt += pageSize;

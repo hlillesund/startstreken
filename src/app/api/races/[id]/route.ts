@@ -61,11 +61,15 @@ function avg(arr: number[]): number | null {
 
 export async function GET(
   req: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
+    const { id } = await params;
+
+
+  
   // id is a URL-encoded slug like "bergen-city-half-marathon"
   // Decode it back to a name fragment and find matching events
-  const slug = decodeURIComponent(params.id);
+  const slug = decodeURIComponent(id);
 
   // Also accept a ?category= override; fall back to inferring from results
   const { searchParams } = new URL(req.url);
@@ -274,7 +278,7 @@ export async function GET(
   return NextResponse.json({
     ok: true,
     race: {
-      id: params.id,
+      id: id,
       name: canonicalName,
       location: matchingEvents[0].location ?? null,
       distance_category: cat,

@@ -3374,3 +3374,13 @@ body {
   .ath-result-time-block { min-width: 90px; padding: 12px 12px; }
   .ath-result-time { font-size: 18px; }
 }
+/* ── Leaderboard gender grid — stack on mobile ── */
+.cpn-lb-gender-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+}
+@media (max-width: 500px) {
+  .cpn-lb-gender-grid {
+    grid-template-columns: 1fr;
+  }
+}

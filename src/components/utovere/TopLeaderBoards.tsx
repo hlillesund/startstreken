@@ -148,6 +148,7 @@ export default function TopLeaderboards({ year, onSelectAthlete }: Props) {
             display: "grid",
             gridTemplateColumns: "1fr 1fr",
           }}
+          className="cpn-lb-gender-grid"
         >
           {(["M", "F"] as const).map((gender, gi) => (
             <div
@@ -218,11 +219,13 @@ export default function TopLeaderboards({ year, onSelectAthlete }: Props) {
                       <span
                         style={{
                           fontFamily: "var(--font-body)",
-                          fontSize: 13,
+                          fontSize: 12,
                           fontWeight: 700,
                           color: isFirst ? "#ffffff" : "var(--fg)",
+                          lineHeight: 1.3,
+                          overflowWrap: "break-word",
                           wordBreak: "break-word",
-                          lineHeight: 1.2,
+                          hyphens: "auto",
                         }}
                       >
                         {entry.display_name}

@@ -221,9 +221,8 @@ export default function TopLeaderboards({ year, onSelectAthlete }: Props) {
                           fontSize: 13,
                           fontWeight: 700,
                           color: isFirst ? "#ffffff" : "var(--fg)",
-                          whiteSpace: "nowrap",
-                          overflow: "hidden",
-                          textOverflow: "ellipsis",
+                          wordBreak: "break-word",
+                          lineHeight: 1.2,
                         }}
                       >
                         {entry.display_name}
@@ -263,11 +262,12 @@ export default function TopLeaderboards({ year, onSelectAthlete }: Props) {
                     <span
                       style={{
                         fontFamily: "var(--font-display)",
-                        fontSize: 22,
+                        fontSize: 18,
                         letterSpacing: "0.04em",
                         lineHeight: 1,
                         color: isFirst ? "var(--highlight)" : "var(--fg)",
                         whiteSpace: "nowrap",
+                        flexShrink: 0,
                       }}
                     >
                       {formatTime(entry.best_time_ms)}

@@ -171,7 +171,7 @@ body {
 .cpn-hit-arrow { font-size: 14px; color: var(--fg-3); }
 
 /* athlete profile */
-.cpn-profile { padding: 0 48px; }
+.cpn-profile { padding: 0; }
 .cpn-athlete-header { padding: 48px 0 36px; border-bottom: 1px solid var(--line); display: grid; grid-template-columns: 1fr auto; gap: 32px; align-items: end; }
 .cpn-back { display: inline-flex; align-items: center; gap: 8px; font-size: 9px; font-family: var(--font-mono); letter-spacing: 0.14em; text-transform: uppercase; color: var(--fg-3); background: transparent; border: none; cursor: pointer; padding: 0; margin-bottom: 20px; transition: color 0.15s; }
 .cpn-back:hover { color: var(--fg); }
@@ -532,7 +532,7 @@ body {
   .cpn-lb-card { border-right: none; }
   .cpn-upcoming-grid { grid-template-columns: 1fr; }
   .cpn-upcoming-col { border-right: none; }
-  .cpn-profile { padding: 0 16px; }
+  .cpn-profile { padding: 0; }
   .cpn-athlete-header { padding: 24px 0 20px; grid-template-columns: 1fr; gap: 12px; }
   .cpn-athlete-name { font-size: clamp(36px,10vw,58px); }
   .cpn-tabs { position: sticky; top: var(--topnav-h); z-index: 5; background: var(--bg-2); }
@@ -2687,4 +2687,690 @@ body {
     align-items: center;
     gap: 10px;
   }
+}
+/* ============================================================
+   ATHLETE PROFILE  (ath-*)
+   Paste at bottom of globals.css — replaces any previous prf-* blocks
+============================================================ */
+
+.ath-root {
+  min-height: 100vh;
+  background: var(--bg);
+}
+
+/* ── DARK HERO ── */
+.ath-hero {
+  background: #0a0a0a;
+  padding: 20px 48px 0;
+  position: relative;
+}
+@media (max-width: 768px) { .ath-hero { padding: 14px 16px 0; } }
+
+.ath-back {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: rgba(255,255,255,0.3);
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  padding: 0;
+  margin-bottom: 24px;
+  transition: color 0.15s;
+}
+.ath-back:hover { color: var(--highlight); }
+
+.ath-hero-inner {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 40px;
+  align-items: start;
+  padding-bottom: 28px;
+}
+@media (max-width: 900px) { .ath-hero-inner { grid-template-columns: 1fr; } }
+
+/* Identity left */
+.ath-identity {
+  display: flex;
+  align-items: flex-start;
+  gap: 20px;
+}
+
+.ath-initials {
+  width: 56px;
+  height: 56px;
+  background: var(--highlight);
+  color: #0a0a0a;
+  font-family: var(--font-display);
+  font-size: 22px;
+  font-weight: 400;
+  letter-spacing: 0.06em;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  margin-top: 4px;
+}
+
+.ath-name {
+  font-family: var(--font-display);
+  font-size: clamp(32px, 4.5vw, 64px);
+  font-weight: 400;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  line-height: 0.92;
+  color: #fff;
+  margin: 0 0 8px;
+}
+
+.ath-meta {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: rgba(255,255,255,0.3);
+  letter-spacing: 0.06em;
+  margin-bottom: 16px;
+}
+
+.ath-refreshing {
+  color: rgba(255,255,255,0.3);
+  animation: pulse 1.5s ease-in-out infinite;
+}
+
+/* Distance pills in hero */
+.ath-dist-pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.ath-dist-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  padding: 5px 12px;
+  border: 1px solid rgba(255,255,255,0.15);
+  background: transparent;
+  color: rgba(255,255,255,0.45);
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.ath-dist-pill:hover {
+  border-color: rgba(255,255,255,0.35);
+  color: rgba(255,255,255,0.8);
+}
+.ath-dist-pill.active {
+  background: var(--highlight);
+  border-color: var(--highlight);
+  color: #0a0a0a;
+}
+
+.ath-pill-rank {
+  font-size: 9px;
+  opacity: 0.7;
+}
+.ath-dist-pill.active .ath-pill-rank { opacity: 0.6; }
+
+/* Hero PBs right side */
+.ath-hero-pbs {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 200px;
+}
+@media (max-width: 900px) { .ath-hero-pbs { flex-direction: row; gap: 8px; flex-wrap: wrap; } }
+
+.ath-hero-pb {
+  text-align: right;
+  padding: 10px 16px;
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(255,255,255,0.07);
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+}
+.ath-hero-pb:hover {
+  background: rgba(255,255,255,0.08);
+  border-color: rgba(255,255,255,0.14);
+}
+.ath-hero-pb.active {
+  background: rgba(232,255,90,0.08);
+  border-color: var(--highlight);
+}
+@media (max-width: 900px) {
+  .ath-hero-pb { text-align: left; align-items: flex-start; min-width: 140px; flex: 1; }
+}
+
+.ath-hero-pb-dist {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: rgba(255,255,255,0.3);
+  margin-bottom: 4px;
+}
+.ath-hero-pb.active .ath-hero-pb-dist { color: var(--highlight); }
+
+.ath-hero-pb-time {
+  font-family: var(--font-display);
+  font-size: 28px;
+  letter-spacing: 0.02em;
+  color: #fff;
+  line-height: 1;
+}
+.ath-hero-pb.active .ath-hero-pb-time { color: var(--highlight); }
+
+.ath-hero-pb-sub {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  color: rgba(255,255,255,0.25);
+  margin-top: 3px;
+}
+
+/* Ranking stripe at bottom of hero */
+.ath-rank-stripe {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border-top: 1px solid rgba(255,255,255,0.07);
+  padding: 12px 0;
+  overflow-x: auto;
+  flex-wrap: wrap;
+}
+.ath-rank-stripe::-webkit-scrollbar { display: none; }
+
+.ath-rank-stripe-label {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: rgba(255,255,255,0.2);
+  margin-right: 4px;
+  white-space: nowrap;
+}
+
+.ath-rank-loading {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: rgba(255,255,255,0.2);
+  animation: pulse 1.5s ease-in-out infinite;
+}
+
+.ath-rank-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 12px;
+  background: rgba(255,255,255,0.05);
+  border: 1px solid rgba(255,255,255,0.1);
+  cursor: pointer;
+  transition: all 0.15s;
+  white-space: nowrap;
+}
+.ath-rank-chip:hover {
+  background: rgba(255,255,255,0.09);
+}
+.ath-rank-chip.active {
+  background: rgba(232,255,90,0.1);
+  border-color: var(--highlight);
+}
+
+.ath-rank-chip-dist {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: rgba(255,255,255,0.35);
+}
+.ath-rank-chip.active .ath-rank-chip-dist { color: var(--highlight); }
+
+.ath-rank-chip-rank {
+  font-family: var(--font-display);
+  font-size: 18px;
+  letter-spacing: 0.02em;
+  color: #fff;
+  line-height: 1;
+}
+.ath-rank-chip.active .ath-rank-chip-rank { color: var(--highlight); }
+
+.ath-rank-chip-total {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  color: rgba(255,255,255,0.2);
+}
+
+/* ── DISTANCE TABS ── */
+.ath-tabs {
+  display: flex;
+  background: var(--bg-2);
+  border-bottom: 1px solid var(--line-mid);
+  position: sticky;
+  top: var(--topnav-h);
+  z-index: 10;
+  overflow-x: auto;
+}
+.ath-tabs::-webkit-scrollbar { display: none; }
+
+.ath-tab {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 14px 20px;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--fg-3);
+  background: transparent;
+  border: none;
+  border-right: 1px solid var(--line);
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.12s, color 0.12s;
+}
+.ath-tab:hover { background: var(--bg-3); color: var(--fg); }
+.ath-tab.active {
+  background: var(--fg);
+  color: var(--highlight);
+  border-right-color: var(--fg);
+}
+
+.ath-tab-label { }
+.ath-tab-count {
+  font-size: 9px;
+  background: rgba(0,0,0,0.1);
+  padding: 1px 5px;
+  border-radius: 10px;
+}
+.ath-tab.active .ath-tab-count {
+  background: rgba(232,255,90,0.2);
+  color: var(--highlight);
+}
+
+/* ── STATS ZONE ── */
+.ath-stats-zone {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 0;
+  border-bottom: 1px solid var(--line);
+}
+@media (max-width: 768px) { .ath-stats-zone { grid-template-columns: 1fr; } }
+
+/* Big PB hero card */
+.ath-pb-hero {
+  padding: 32px 40px;
+  background: var(--bg-2);
+  border-right: 1px solid var(--line);
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+@media (max-width: 768px) {
+  .ath-pb-hero {
+    padding: 24px 16px;
+    border-right: none;
+    border-bottom: none;
+  }
+}
+
+.ath-pb-eyebrow {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--fg-3);
+  margin-bottom: 8px;
+}
+
+.ath-pb-big {
+  font-family: var(--font-display);
+  font-size: clamp(56px, 8vw, 96px);
+  font-weight: 400;
+  letter-spacing: 0.02em;
+  color: var(--fg);
+  line-height: 0.9;
+  margin-bottom: 12px;
+}
+
+.ath-pb-context {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-bottom: 16px;
+}
+
+.ath-pb-pace {
+  font-family: var(--font-display);
+  font-size: 18px;
+  color: var(--fg);
+  letter-spacing: 0.04em;
+}
+
+.ath-pb-event {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--fg-2);
+  letter-spacing: 0.06em;
+}
+
+.ath-pb-date {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--fg-3);
+}
+
+/* 2026 rank badge under the PB */
+.ath-pb-rank-badge {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 10px;
+  background: var(--fg);
+  padding: 8px 16px;
+  width: fit-content;
+}
+
+.ath-pb-rank-num {
+  font-family: var(--font-display);
+  font-size: 28px;
+  letter-spacing: 0.04em;
+  color: var(--highlight);
+  line-height: 1;
+}
+
+.ath-pb-rank-label {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: rgba(255,255,255,0.5);
+  letter-spacing: 0.08em;
+}
+
+/* Stat cells on right — stack vertically on desktop, 2x2 on mobile */
+.ath-stat-cells {
+  display: grid;
+  grid-template-columns: 1fr;
+  grid-template-rows: repeat(4, 1fr);
+  min-width: 180px;
+  border-top: none;
+}
+@media (max-width: 768px) {
+  .ath-stat-cells {
+    grid-template-columns: repeat(2, 1fr);
+    grid-template-rows: repeat(2, auto);
+    min-width: 0;
+    border-top: 1px solid var(--line);
+  }
+}
+
+.ath-stat-cell {
+  padding: 18px 22px;
+  border-bottom: 1px solid var(--line);
+  background: var(--bg);
+}
+.ath-stat-cell:last-child { border-bottom: none; }
+@media (max-width: 768px) {
+  .ath-stat-cell { border-right: 1px solid var(--line); padding: 16px; }
+  .ath-stat-cell:nth-child(2n) { border-right: none; }
+  .ath-stat-cell:nth-child(3), .ath-stat-cell:nth-child(4) { border-bottom: none; }
+}
+
+.ath-stat-cell--trend.ath-stat-cell--up .ath-stat-cell-val { color: var(--success); }
+.ath-stat-cell--trend.ath-stat-cell--dn .ath-stat-cell-val { color: var(--danger); }
+.ath-stat-cell--trend.ath-stat-cell--neutral .ath-stat-cell-val { color: var(--fg-3); }
+
+.ath-stat-cell-label {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--fg-3);
+  margin-bottom: 5px;
+}
+
+.ath-stat-cell-val {
+  font-family: var(--font-display);
+  font-size: 24px;
+  letter-spacing: 0.02em;
+  color: var(--fg);
+  line-height: 1;
+}
+
+.ath-stat-cell-hint {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--fg-3);
+  margin-top: 4px;
+  line-height: 1.4;
+}
+
+/* No results for this distance */
+.ath-no-dist {
+  padding: 28px 40px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--fg-3);
+  letter-spacing: 0.08em;
+  background: var(--bg-2);
+  border-bottom: 1px solid var(--line);
+}
+@media (max-width: 768px) { .ath-no-dist { padding: 20px 16px; } }
+
+/* ── CHART ── */
+.ath-chart-section {
+  padding: 28px 40px 24px;
+  background: var(--bg-2);
+  border-bottom: 1px solid var(--line);
+}
+@media (max-width: 768px) { .ath-chart-section { padding: 20px 16px; } }
+
+.ath-section-label {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--fg-3);
+  margin-bottom: 16px;
+}
+
+/* ── RESULTS LIST ── */
+.ath-results-section {
+  padding: 28px 40px 64px;
+  background: var(--bg);
+}
+@media (max-width: 768px) { .ath-results-section { padding: 20px 16px 48px; } }
+
+.ath-results-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 16px;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.ath-results-count {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  color: var(--fg-3);
+  margin-left: 10px;
+  letter-spacing: 0.06em;
+}
+
+.ath-sort-row {
+  display: flex;
+  gap: 4px;
+}
+
+.ath-sort-btn {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  padding: 5px 12px;
+  border: 1px solid var(--line-mid);
+  background: var(--bg-2);
+  cursor: pointer;
+  color: var(--fg-3);
+  transition: background 0.12s, color 0.12s;
+}
+.ath-sort-btn:hover { background: var(--bg-3); color: var(--fg); }
+.ath-sort-btn.active { background: var(--fg); color: var(--bg-2); border-color: var(--fg); }
+
+.ath-loading {
+  padding: 32px 0;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--fg-3);
+  letter-spacing: 0.08em;
+}
+
+/* Result rows */
+.ath-result-list {
+  border: 1px solid var(--line-mid);
+}
+
+.ath-result {
+  display: grid;
+  grid-template-columns: 44px 1fr auto auto;
+  align-items: center;
+  gap: 0;
+  min-height: 64px;
+  border-bottom: 1px solid var(--line);
+  background: var(--bg-2);
+  transition: background 0.1s;
+}
+.ath-result:last-child { border-bottom: none; }
+.ath-result:hover { background: var(--bg-3); }
+
+.ath-result--podium {
+  background: var(--bg-2);
+  border-left: 3px solid var(--highlight);
+}
+.ath-result--podium:hover { background: rgba(232,255,90,0.04); }
+
+@media (max-width: 600px) {
+  .ath-result {
+    grid-template-columns: 36px 1fr auto;
+    grid-template-rows: auto auto;
+  }
+  .ath-result-rank { display: none; }
+}
+
+/* Index / medal */
+.ath-result-idx {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  border-right: 1px solid var(--line);
+  background: var(--bg-3);
+}
+
+.ath-result-medal { font-size: 16px; line-height: 1; }
+.ath-result-num {
+  font-family: var(--font-display);
+  font-size: 16px;
+  color: var(--fg-3);
+  line-height: 1;
+}
+
+/* Event info */
+.ath-result-event {
+  padding: 14px 16px;
+  min-width: 0;
+}
+
+.ath-result-name {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--fg);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.ath-result-sub {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--fg-3);
+  margin-top: 3px;
+  letter-spacing: 0.04em;
+}
+
+/* Rank block */
+.ath-result-rank {
+  padding: 14px 16px;
+  text-align: right;
+  border-left: 1px solid var(--line);
+  min-width: 120px;
+}
+
+.ath-result-rank-overall {
+  font-family: var(--font-display);
+  font-size: 22px;
+  letter-spacing: 0.02em;
+  color: var(--fg);
+  line-height: 1;
+}
+
+.ath-result-rank-denom {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--fg-3);
+}
+
+.ath-result-rank-gender {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--fg-3);
+  margin-top: 3px;
+}
+.ath-result-rank-gender.top { color: var(--fg-2); font-weight: 600; }
+
+/* Time block */
+.ath-result-time-block {
+  padding: 14px 20px 14px 16px;
+  text-align: right;
+  border-left: 1px solid var(--line);
+  min-width: 110px;
+}
+
+.ath-result-time {
+  font-family: var(--font-display);
+  font-size: 22px;
+  letter-spacing: 0.02em;
+  color: var(--fg);
+  line-height: 1;
+}
+.ath-result--podium .ath-result-time { color: var(--fg); }
+
+.ath-result-pace {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--fg-3);
+  margin-top: 3px;
+}
+
+@media (max-width: 600px) {
+  .ath-result-time-block { min-width: 90px; padding: 12px 12px; }
+  .ath-result-time { font-size: 18px; }
 }

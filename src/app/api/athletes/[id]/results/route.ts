@@ -20,6 +20,7 @@ export async function GET(
       distance_category: true,
       club:              true,
       bib:               true,
+      raw:               true,
       races: {
         select: {
           id:   true,
@@ -69,8 +70,14 @@ export async function GET(
   }
 
   // 3. Shape the output
+  // Results where raw contains "ArrangementUID" were pulled via refresh-eqtiming
+  // for individual athletes — the race hasn't been fully imported so only this
+  // athlete exists in the DB. Ranks for these are meaningless (#1 of 1).
+  // Full CSV imports store { source, eventId, raceName, reportId } with no ArrangementUID.
   const out = results.map((r) => {
     const gc = genderMap.get(r.races.id);
+    const rawJson = r.raw as Record<string, unknown> | null;
+    const isFullyImported = !rawJson?.ArrangementUID;
     return {
       race_id:            r.races.id,
       race_name:          r.races.name,
@@ -81,11 +88,11 @@ export async function GET(
       distance_category:  r.distance_category,
       club:               r.club,
       bib:                r.bib,
-      rank_overall:       r.rank_overall ?? null,
-      rank_gender:        r.rank_gender ?? null,
-      total_finishers:    r.races._count.results,
-      total_finishers_m:  gc?.M ?? null,
-      total_finishers_f:  gc?.F ?? null,
+      rank_overall:       isFullyImported ? (r.rank_overall ?? null) : null,
+      rank_gender:        isFullyImported ? (r.rank_gender  ?? null) : null,
+      total_finishers:    isFullyImported ? r.races._count.results : null,
+      total_finishers_m:  isFullyImported ? (gc?.M ?? null) : null,
+      total_finishers_f:  isFullyImported ? (gc?.F ?? null) : null,
     };
   });
 

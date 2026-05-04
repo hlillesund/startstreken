@@ -179,10 +179,10 @@ export default function TopLeaderboards({ year, onSelectAthlete }: Props) {
                     key={entry.athlete_id}
                     style={{
                       display: "grid",
-                      gridTemplateColumns: "28px 1fr auto",
+                      gridTemplateColumns: "28px 1fr",
                       alignItems: "center",
-                      gap: 12,
-                      padding: "14px 20px",
+                      gap: "8px 12px",
+                      padding: "12px 14px",
                       cursor: onSelectAthlete ? "pointer" : "default",
                       transition: "background 0.12s",
                       ...(rankStyle[entry.rank] ?? {
@@ -214,22 +214,34 @@ export default function TopLeaderboards({ year, onSelectAthlete }: Props) {
                       {entry.rank}
                     </div>
 
-                    {/* Name + club + race */}
-                    <div style={{ display: "flex", flexDirection: "column", gap: 2, minWidth: 0 }}>
-                      <span
-                        style={{
-                          fontFamily: "var(--font-body)",
-                          fontSize: 12,
-                          fontWeight: 700,
-                          color: isFirst ? "#ffffff" : "var(--fg)",
-                          lineHeight: 1.3,
-                          overflowWrap: "break-word",
-                          wordBreak: "break-word",
-                          hyphens: "auto",
-                        }}
-                      >
-                        {entry.display_name}
-                      </span>
+                    {/* Name + time + club */}
+                    <div style={{ display: "flex", flexDirection: "column", gap: 3, minWidth: 0 }}>
+                      <div style={{ display: "flex", alignItems: "baseline", gap: 8, flexWrap: "wrap" }}>
+                        <span
+                          style={{
+                            fontFamily: "var(--font-body)",
+                            fontSize: 13,
+                            fontWeight: 700,
+                            color: isFirst ? "#ffffff" : "var(--fg)",
+                            lineHeight: 1.2,
+                          }}
+                        >
+                          {entry.display_name}
+                        </span>
+                        <span
+                          style={{
+                            fontFamily: "var(--font-display)",
+                            fontSize: 16,
+                            letterSpacing: "0.04em",
+                            lineHeight: 1,
+                            color: isFirst ? "var(--highlight)" : "var(--fg)",
+                            whiteSpace: "nowrap",
+                            flexShrink: 0,
+                          }}
+                        >
+                          {formatTime(entry.best_time_ms)}
+                        </span>
+                      </div>
                       {entry.club && (
                         <span
                           style={{
@@ -260,21 +272,6 @@ export default function TopLeaderboards({ year, onSelectAthlete }: Props) {
                         </span>
                       )}
                     </div>
-
-                    {/* Time */}
-                    <span
-                      style={{
-                        fontFamily: "var(--font-display)",
-                        fontSize: 18,
-                        letterSpacing: "0.04em",
-                        lineHeight: 1,
-                        color: isFirst ? "var(--highlight)" : "var(--fg)",
-                        whiteSpace: "nowrap",
-                        flexShrink: 0,
-                      }}
-                    >
-                      {formatTime(entry.best_time_ms)}
-                    </span>
                   </div>
                 );
               })}

@@ -146,15 +146,7 @@ export default function HomeClient() {
           <div className="cpn-hero-action-desc">PB · ranking · grafer · profiler</div>
         </a>
 
-         <a className="cpn-hero-action" href="/lop">
-          <div className="cpn-hero-action-top">
-            <span className="cpn-hero-action-label">Løp</span>
-            <span className="cpn-hero-action-arrow">→</span>
-          </div>
-          <div className="cpn-hero-action-desc">Se hvilke løp i Norge som er raskest</div>
-        </a>
-
-        
+       
         
       </div>
     </div>

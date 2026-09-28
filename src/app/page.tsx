@@ -53,8 +53,7 @@ export default function Page() {
             url: "https://startstreken.run/",
             potentialAction: {
               "@type": "SearchAction",
-              // Siden søk er client-side, kan du peke til utøversøk (eller senere en faktisk query-url)
-              target: "https://startstreken.run/utovere",
+              target: "https://startstreken.run/utovere?q={query}",
               "query-input": "required name=query",
             },
           }),

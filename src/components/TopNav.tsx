@@ -2,6 +2,9 @@
 
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
+import { usePathname } from "next/navigation";
+import { GitCompareArrows, Home, LogOut, Search, Trophy, User } from "lucide-react";
+import Logo from "@/components/ui/Logo";
 
 type MeUser =
   | null
@@ -12,68 +15,52 @@ type MeUser =
       avatarUrl: string | null;
     };
 
-export default function TopNav() {
-  const [open, setOpen] = useState(false);
+const LINKS = [
+  { href: "/utovere", label: "Utøvere", match: (p: string) => p === "/utovere" },
+  { href: "/utovere/topp100", label: "Topplister", match: (p: string) => p.startsWith("/utovere/topp100") || p.startsWith("/utovere/ranking") },
+  { href: "/utovere/sammenlign", label: "Sammenlign", match: (p: string) => p.startsWith("/utovere/sammenlign") },
+  { href: "/lop", label: "Løp", match: (p: string) => p.startsWith("/lop") },
+];
 
-  // profile state
+const TABS = [
+  { href: "/", label: "Hjem", icon: Home, match: (p: string) => p === "/" },
+  { href: "/utovere", label: "Søk", icon: Search, match: (p: string) => p === "/utovere" },
+  { href: "/utovere/topp100", label: "Topplister", icon: Trophy, match: (p: string) => p.startsWith("/utovere/topp100") || p.startsWith("/utovere/ranking") },
+  { href: "/utovere/sammenlign", label: "Sammenlign", icon: GitCompareArrows, match: (p: string) => p.startsWith("/utovere/sammenlign") },
+];
+
+export default function TopNav() {
+  const pathname = usePathname() ?? "/";
   const [me, setMe] = useState<MeUser>(null);
-  const [meLoading, setMeLoading] = useState(true);
   const [profileOpen, setProfileOpen] = useState(false);
   const profileRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
-    const nav = document.getElementById("topnav");
-    if (!nav) return;
-
-    const onScroll = () => {
-      nav.classList.toggle("scrolled", window.scrollY > 8);
-    };
-
-    onScroll();
-    window.addEventListener("scroll", onScroll, { passive: true });
-    return () => window.removeEventListener("scroll", onScroll);
-  }, []);
-
-  // fetch current user
-  useEffect(() => {
     let cancelled = false;
-
-    async function loadMe() {
-      try {
-        setMeLoading(true);
-        const res = await fetch("/api/auth/me", { credentials: "include" });
-        if (!res.ok) {
-          if (!cancelled) setMe(null);
-          return;
-        }
-        const data = await res.json();
-        if (!cancelled) setMe(data.user ?? null);
-      } catch {
+    fetch("/api/auth/me", { credentials: "include" })
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (!cancelled) setMe(data?.user ?? null);
+      })
+      .catch(() => {
         if (!cancelled) setMe(null);
-      } finally {
-        if (!cancelled) setMeLoading(false);
-      }
-    }
-
-    loadMe();
+      });
     return () => {
       cancelled = true;
     };
   }, []);
 
-  // close dropdown on outside click / esc
   useEffect(() => {
-    const onDown = (e: MouseEvent) => {
-      if (!profileRef.current) return;
-      if (!profileRef.current.contains(e.target as Node)) setProfileOpen(false);
+    const onDown = (e: PointerEvent) => {
+      if (profileRef.current && !profileRef.current.contains(e.target as Node)) setProfileOpen(false);
     };
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") setProfileOpen(false);
     };
-    window.addEventListener("mousedown", onDown);
+    window.addEventListener("pointerdown", onDown);
     window.addEventListener("keydown", onKey);
     return () => {
-      window.removeEventListener("mousedown", onDown);
+      window.removeEventListener("pointerdown", onDown);
       window.removeEventListener("keydown", onKey);
     };
   }, []);
@@ -85,61 +72,60 @@ export default function TopNav() {
   }
 
   return (
-    <header id="topnav" className="topnav">
-      <div className="topnav-bar">
-        <div className="topnav-container">
-          {/* LOGO – viewport anchored */}
-          <Link href="/" className="topnav-logo">
-            <img src="/startstreken2.png" alt="Startstreken" />
-          </Link>
+    <>
+      <header className="ss-nav">
+        <div className="ss-container ss-nav-inner">
+          <Logo />
 
-          {/* DESKTOP NAV */}
-          <nav className="topnav-links desktop-nav"></nav>
+          <nav className="ss-nav-links" aria-label="Hovedmeny">
+            {LINKS.map((l) => (
+              <Link key={l.href} href={l.href} className={`ss-nav-link${l.match(pathname) ? " active" : ""}`}>
+                {l.label}
+              </Link>
+            ))}
+          </nav>
 
-          {/* RIGHT SIDE: profile + mobile */}
-          <div className="topnav-right">
-            {/* Profile */}
-            <div className="topnav-profile" ref={profileRef}>
+          <div className="ss-nav-right">
+            {pathname !== "/" && pathname !== "/utovere" && (
+              <Link href="/utovere" className="ss-nav-search">
+                <Search size={16} />
+                Søk etter utøver
+              </Link>
+            )}
+
+            <div className="ss-profile" ref={profileRef}>
               <button
-                className="topnav-profile-btn"
+                className="ss-profile-btn"
                 onClick={() => setProfileOpen((v) => !v)}
                 aria-label="Profil"
+                aria-expanded={profileOpen}
               >
-                {meLoading ? (
-                  <div className="topnav-avatar skeleton" />
-                ) : me?.avatarUrl ? (
-                  <img
-                    className="topnav-avatar"
-                    src={me.avatarUrl}
-                    alt={me.displayName ?? "Profil"}
-                    referrerPolicy="no-referrer"
-                  />
+                {me?.avatarUrl ? (
+                  <img src={me.avatarUrl} alt={me.displayName ?? "Profil"} referrerPolicy="no-referrer" />
                 ) : (
-                  <div className="topnav-avatar fallback">👤</div>
+                  <User size={18} />
                 )}
               </button>
 
               {profileOpen && (
-                <div className="topnav-profile-menu">
+                <div className="ss-menu">
                   {me ? (
                     <>
-                      <div className="topnav-profile-head">
-                        <div className="name">{me.displayName ?? "Innlogget"}</div>
-                        <div className="meta">Strava</div>
+                      <div className="ss-menu-head">
+                        <div className="ss-menu-name">{me.displayName ?? "Innlogget"}</div>
+                        <div className="ss-menu-meta">Innlogget med Strava</div>
                       </div>
-
-                      <button className="menu-item" onClick={logout}>
-                        Logg ut
+                      <button className="ss-menu-item" onClick={logout}>
+                        <LogOut size={16} /> Logg ut
                       </button>
                     </>
                   ) : (
                     <>
-                      <div className="topnav-profile-head">
-                        <div className="name">Ikke logget inn</div>
-                        <div className="meta">Logg inn for å kjøpe/selge</div>
+                      <div className="ss-menu-head">
+                        <div className="ss-menu-name">Ikke logget inn</div>
+                        <div className="ss-menu-meta">Logg inn for å kjøpe og selge startnummer</div>
                       </div>
-
-                      <a className="menu-item" href="/api/auth/strava/start">
+                      <a className="ss-menu-item ss-menu-item--strava" href="/api/auth/strava/start">
                         Logg inn med Strava
                       </a>
                     </>
@@ -147,27 +133,24 @@ export default function TopNav() {
                 </div>
               )}
             </div>
-
-            {/* MOBILE BUTTON */}
-            <button
-              className={`mobile-menu-button ${open ? "open" : ""}`}
-              onClick={() => setOpen((v) => !v)}
-              aria-label="Åpne meny"
-            >
-         
-              <span />
-              <span />
-            </button>
           </div>
         </div>
-      </div>
+      </header>
 
-      {/* MOBILE MENU */}
-      <div className={`mobile-menu ${open ? "open" : ""}`}>
-        <Link href="/utovere" onClick={() => setOpen(false)}>
-          Utøversøk
-        </Link>
-      </div>
-    </header>
+      <nav className="ss-tabbar" aria-label="Navigasjon">
+        {TABS.map((t) => {
+          const Icon = t.icon;
+          const active = t.match(pathname);
+          return (
+            <Link key={t.href} href={t.href} className={`ss-tab${active ? " active" : ""}`} aria-current={active ? "page" : undefined}>
+              <span className="ss-tab-icon">
+                <Icon size={20} strokeWidth={active ? 2.4 : 2} />
+              </span>
+              {t.label}
+            </Link>
+          );
+        })}
+      </nav>
+    </>
   );
 }

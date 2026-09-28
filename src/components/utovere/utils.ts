@@ -7,6 +7,59 @@ export function formatTime(ms: number) {
   return h > 0 ? `${h}:${pad(m)}:${pad(sec)}` : `${m}:${pad(sec)}`;
 }
 
+export const MAIN_DISTANCES = [
+  { key: "5K", label: "5 km", short: "5K", long: "5 kilometer", meters: 5000 },
+  { key: "10K", label: "10 km", short: "10K", long: "10 kilometer", meters: 10000 },
+  { key: "HM", label: "Halvmaraton", short: "Halv", long: "Halvmaraton", meters: 21097.5 },
+  { key: "M", label: "Maraton", short: "Maraton", long: "Maraton", meters: 42195 },
+] as const;
+
+export type MainDistance = (typeof MAIN_DISTANCES)[number]["key"];
+
+export function distanceLabel(cat: string | null | undefined) {
+  return MAIN_DISTANCES.find((d) => d.key === cat)?.label ?? "Annet";
+}
+
+export function distanceMeters(cat: string | null | undefined) {
+  return MAIN_DISTANCES.find((d) => d.key === cat)?.meters ?? null;
+}
+
+/** Pace in min/km, e.g. "4:05/km". */
+export function formatPace(ms: number | null | undefined, meters: number | null | undefined) {
+  if (!ms || !meters) return null;
+  const secPerKm = Math.round(ms / 1000 / (meters / 1000));
+  return `${Math.floor(secPerKm / 60)}:${String(secPerKm % 60).padStart(2, "0")}/km`;
+}
+
+/** Gap between two times, e.g. "+0:23". */
+export function formatGap(ms: number) {
+  return `${ms < 0 ? "−" : "+"}${formatTime(Math.abs(ms))}`;
+}
+
+export function initials(name: string) {
+  return name
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((w) => w[0])
+    .join("")
+    .toUpperCase();
+}
+
+const MONTHS = ["jan", "feb", "mar", "apr", "mai", "jun", "jul", "aug", "sep", "okt", "nov", "des"];
+
+export function formatDateShort(dateStr: string | null) {
+  const m = dateStr?.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (!m) return "—";
+  return `${Number(m[3])}. ${MONTHS[Number(m[2]) - 1]} ${m[1]}`;
+}
+
+export function dateParts(dateStr: string | null) {
+  const m = dateStr?.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (!m) return null;
+  return { day: Number(m[3]), month: MONTHS[Number(m[2]) - 1], year: Number(m[1]) };
+}
+
 export function formatDate(dateStr: string | null) {
   if (!dateStr) return "—";
   const m = dateStr.match(/^(\d{4})-(\d{2})-(\d{2})/);

@@ -22,10 +22,10 @@
   --fg-3:        rgba(0,0,0,0.35);
   --danger:      #dc2626;
   --success:     #16a34a;
-  --topnav-h:    68px;
+  --topnav-h:    60px;
   --journey-speed: 1.5;
   --font-display: 'Bebas Neue', sans-serif;
-  --font-body:    'Syne', sans-serif;
+  --font-body:    var(--font-inter), ui-sans-serif, system-ui, sans-serif;
   --font-mono:    'DM Mono', monospace;
 }
 

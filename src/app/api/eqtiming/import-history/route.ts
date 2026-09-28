@@ -1,0 +1,342 @@
+// src/app/api/eqtiming/import-history/route.ts
+import { prisma } from "@/lib/prisma";
+import { fetchEqParticipantResults } from "@/lib/eqtiming";
+import { Prisma } from "@prisma/client";
+import { classifyEqDistanceCategoryFromItem, applySanity, DistanceCategory } from "@/lib/distance-category";
+
+function normName(name: string) {
+  return name.trim().toLowerCase().replace(/\s+/g, " ");
+}
+
+
+
+function normRaceId(s: string) {
+  return s.trim().toLowerCase().replace(/\s+/g, " ");
+}
+
+
+
+export async function POST(req: Request) {
+  const tAll0 = Date.now();
+
+  const body = await req.json().catch(() => ({}));
+  const participantUid = String(body?.uid ?? "").trim();
+  const displayName = String(body?.name ?? "").trim();
+
+  if (!participantUid || !displayName) {
+    return Response.json({ error: "Need uid + name" }, { status: 400 });
+  }
+
+  const source = await prisma.sources.findUnique({ where: { slug: "eqtiming" } });
+  if (!source) {
+    return Response.json({ error: "Missing sources row for eqtiming" }, { status: 500 });
+  }
+
+  // Upsert athlete (billig, 1 call)
+  const athlete = await prisma.athletes.upsert({
+    where: { display_name_norm: normName(displayName) },
+    update: { display_name: displayName },
+    create: { display_name: displayName, display_name_norm: normName(displayName) },
+    select: { id: true, display_name: true },
+  });
+
+  // Upsert identity (billig, 1 call)
+  await prisma.athlete_identities.upsert({
+    where: {
+      source_id_source_person_id: {
+        source_id: source.id,
+        source_person_id: participantUid,
+      },
+    },
+    update: { athlete_id: athlete.id },
+    create: {
+      athlete_id: athlete.id,
+      source_id: source.id,
+      source_person_id: participantUid,
+    },
+  });
+
+  // 1) Fetch EQTiming
+  const tFetch0 = Date.now();
+  const data = await fetchEqParticipantResults(participantUid);
+  const items: any[] = Array.isArray(data) ? data : data?.Results ?? data?.results ?? [];
+  const fetchMs = Date.now() - tFetch0;
+console.log("eq fetch ms", fetchMs)
+
+
+  // Filter relevante
+  const rows = items
+    .filter((it) => it?.HasResult && it?.WebPubliseres !== false)
+    .map((it) => {
+      const eventId = it?.ArrangementUID;
+      const eventNameRaw = it?.ArrangementNavn;
+      const dateStr = it?.ArrangementDato;
+
+      const raceNameRaw = it?.EtappeNavn ?? "Etappe";
+      const raceIdRaw = it?.EtappeUID;
+
+      const timeMs = typeof it?.Tid === "number" ? it.Tid : null;
+
+      if (!eventId || !eventNameRaw || !timeMs) return null;
+
+      const sourceEventId = String(eventId);
+const sourceRaceId = normRaceId(String(raceNameRaw));
+      return {
+        it,
+        sourceEventId,
+        sourceRaceId,
+        eventNameRaw: String(eventNameRaw),
+        startDateRaw: dateStr ? new Date(dateStr) : null,
+        raceNameRaw: String(raceNameRaw),
+        timeMs,
+      };
+    })
+    .filter(Boolean) as Array<{
+    it: any;
+    sourceEventId: string;
+    sourceRaceId: string;
+    eventNameRaw: string;
+    startDateRaw: Date | null;
+    raceNameRaw: string;
+    timeMs: number;
+  }>;
+
+  if (rows.length === 0) {
+    return Response.json({
+      ok: true,
+      athleteId: athlete.id,
+      insertedOrUpdated: 0,
+      skipped: items.length,
+      timings: { fetchMs, totalMs: Date.now() - tAll0 },
+    });
+  }
+
+  // 2) Batch-hent presets (race + event-only) i én query
+  const eventIds = Array.from(new Set(rows.map((r) => r.sourceEventId)));
+  const raceIds = Array.from(new Set(rows.map((r) => r.sourceRaceId)));
+
+  const presets = await prisma.import_presets.findMany({
+    where: {
+      source_id: source.id,
+      source_event_id: { in: eventIds },
+      OR: [{ source_race_id: { in: raceIds } }, { source_race_id: null }],
+    },
+    select: {
+      source_event_id: true,
+      source_race_id: true,
+      event_name: true,
+      start_date: true,
+      location: true,
+      race_name: true,
+      distance_m: true,
+      distance_category: true,
+    },
+  });
+
+  const presetRaceMap = new Map<string, (typeof presets)[number]>();
+  const presetEventMap = new Map<string, (typeof presets)[number]>();
+
+  for (const p of presets) {
+    if (p.source_race_id == null) presetEventMap.set(p.source_event_id, p);
+    else presetRaceMap.set(`${p.source_event_id}|${p.source_race_id}`, p);
+  }
+
+  function resolvePreset(sourceEventId: string, sourceRaceId: string) {
+    return presetRaceMap.get(`${sourceEventId}|${sourceRaceId}`) ?? presetEventMap.get(sourceEventId) ?? null;
+  }
+
+  // 3) Bygg “canonical” event-data (én per sourceEventId)
+  // preset vinner hvis finnes, ellers første forekomst
+  const eventData = new Map<
+    string,
+    { source_event_id: string; name: string; start_date: Date | null; location: string | null }
+  >();
+
+  for (const r of rows) {
+    const p = resolvePreset(r.sourceEventId, r.sourceRaceId);
+    const name = p?.event_name ?? r.eventNameRaw;
+    const start_date = p?.start_date ?? r.startDateRaw ?? null;
+    const location = (p?.location ?? null) as string | null;
+
+    if (!eventData.has(r.sourceEventId)) {
+      eventData.set(r.sourceEventId, { source_event_id: r.sourceEventId, name, start_date, location });
+    }
+  }
+
+  // 4) Batch UPSERT events via SQL (super-raskt)
+  const tDb0 = Date.now();
+  const eventValues = Array.from(eventData.values()).map((e) =>
+    Prisma.sql`(${source.id}::uuid, ${e.source_event_id}::text, ${e.name}::text, ${e.start_date}::date, ${e.location}::text, now())`
+  );
+
+  await prisma.$executeRaw(
+    Prisma.sql`
+      INSERT INTO public.events (source_id, source_event_id, name, start_date, location, updated_at)
+      VALUES ${Prisma.join(eventValues)}
+      ON CONFLICT (source_id, source_event_id)
+      DO UPDATE SET
+        name = EXCLUDED.name,
+        start_date = EXCLUDED.start_date,
+        location = EXCLUDED.location,
+        updated_at = EXCLUDED.updated_at;
+    `
+  );
+
+  // 5) Hent event uuid-ids i én query
+  const eventRows = await prisma.events.findMany({
+    where: { source_id: source.id, source_event_id: { in: eventIds } },
+    select: { id: true, source_event_id: true },
+  });
+  const eventIdMap = new Map(eventRows.map((e) => [e.source_event_id, e.id]));
+
+  // 6) Bygg races (unik per (event_uuid, sourceRaceId))
+  const raceData = new Map<
+    string,
+    { event_id: string; source_race_id: string; name: string; distance_m: number | null }
+  >();
+
+  for (const r of rows) {
+    const event_uuid = eventIdMap.get(r.sourceEventId);
+    if (!event_uuid) continue;
+
+    const p = resolvePreset(r.sourceEventId, r.sourceRaceId);
+    const name = p?.race_name ?? r.raceNameRaw;
+    const distance_m = (p?.distance_m ?? null) as number | null;
+
+    const key = `${event_uuid}|${r.sourceRaceId}`;
+    if (!raceData.has(key)) raceData.set(key, { event_id: event_uuid, source_race_id: r.sourceRaceId, name, distance_m });
+  }
+
+  // 7) Batch UPSERT races via SQL
+  const raceValues = Array.from(raceData.values()).map((rc) =>
+    Prisma.sql`(${rc.event_id}::uuid, ${rc.source_race_id}::text, ${rc.name}::text, ${rc.distance_m}::int)`
+  );
+
+  await prisma.$executeRaw(
+    Prisma.sql`
+      INSERT INTO public.races (event_id, source_race_id, name, distance_m)
+      VALUES ${Prisma.join(raceValues)}
+      ON CONFLICT (event_id, source_race_id)
+      DO UPDATE SET
+        name = EXCLUDED.name,
+        distance_m = EXCLUDED.distance_m;
+    `
+  );
+
+  // 8) Hent race uuid-ids i én query
+  const raceRows = await prisma.races.findMany({
+    where: {
+      event_id: { in: eventRows.map((e) => e.id) },
+      source_race_id: { in: raceIds },
+    },
+    select: { id: true, event_id: true, source_race_id: true },
+  });
+  const raceIdMap = new Map(raceRows.map((rc) => [`${rc.event_id}|${rc.source_race_id}`, rc.id] as const));
+
+  // 9) Bygg results rows med desired category (preset → inferred → sanity)
+  const resultValues = rows
+    .map((r) => {
+      const event_uuid = eventIdMap.get(r.sourceEventId);
+      if (!event_uuid) return null;
+
+      const race_uuid = raceIdMap.get(`${event_uuid}|${r.sourceRaceId}`);
+      if (!race_uuid) return null;
+
+      const p = resolvePreset(r.sourceEventId, r.sourceRaceId);
+     const inferred = classifyEqDistanceCategoryFromItem(r.it);
+
+  const desired = applySanity((p?.distance_category ?? inferred ?? "OTHER") as DistanceCategory, r.timeMs, r.raceNameRaw);
+
+      return Prisma.sql`(
+        ${race_uuid}::uuid,
+        ${athlete.id}::uuid,
+        ${r.timeMs}::int,
+        ${r.it?.Plassering ?? null}::int,
+        ${r.it}::jsonb,
+        ${desired}::text
+      )`;
+    })
+    .filter(Boolean) as Prisma.Sql[];
+// 9.5) Slett eksisterende results for denne utøveren i alle berørte races
+  // slik at history-API alltid vinner over rapport 347
+  const allRaceUuids = Array.from(new Set(
+    rows
+      .map((r) => {
+        const event_uuid = eventIdMap.get(r.sourceEventId);
+        if (!event_uuid) return null;
+        return raceIdMap.get(`${event_uuid}|${r.sourceRaceId}`);
+      })
+      .filter(Boolean) as string[]
+  ));
+
+ /// 9.5) Slett history-API-resultater for utøveren, men ikke rapport 347
+  if (allRaceUuids.length > 0) {
+    await prisma.results.deleteMany({
+      where: {
+        athlete_id: athlete.id,
+        race_id: { in: allRaceUuids },
+        NOT: { raw: { path: ["source"], equals: "eqtiming" } },
+      },
+    });
+  }
+
+  // Finn races som allerede har rapport 347-resultat — disse skal ikke overskrives
+  const racesWithReport347 = new Set(
+    (await prisma.results.findMany({
+      where: {
+        athlete_id: athlete.id,
+        race_id: { in: allRaceUuids },
+      },
+      select: { race_id: true },
+    })).map((r) => r.race_id)
+  );
+
+  // 10) Bare insert for races som ikke har rapport 347
+  const filteredResultValues = rows
+    .map((r) => {
+      const event_uuid = eventIdMap.get(r.sourceEventId);
+      if (!event_uuid) return null;
+      const race_uuid = raceIdMap.get(`${event_uuid}|${r.sourceRaceId}`);
+      if (!race_uuid) return null;
+      if (racesWithReport347.has(race_uuid)) return null; // rapport 347 vinner
+
+      const p = resolvePreset(r.sourceEventId, r.sourceRaceId);
+      const inferred = classifyEqDistanceCategoryFromItem(r.it);
+      const desired = applySanity((p?.distance_category ?? inferred ?? "OTHER") as DistanceCategory, r.timeMs, r.raceNameRaw);
+
+      return Prisma.sql`(
+        ${race_uuid}::uuid,
+        ${athlete.id}::uuid,
+        ${r.timeMs}::int,
+        ${r.it?.Plassering ?? null}::int,
+        ${r.it}::jsonb,
+        ${desired}::text
+      )`;
+    })
+    .filter(Boolean) as Prisma.Sql[];
+
+  if (filteredResultValues.length > 0) {
+    await prisma.$executeRaw(
+      Prisma.sql`
+        INSERT INTO public.results (race_id, athlete_id, time_ms, rank_overall, raw, distance_category)
+        VALUES ${Prisma.join(filteredResultValues)}
+        ON CONFLICT (race_id, athlete_id, time_ms)
+        DO UPDATE SET
+          rank_overall = EXCLUDED.rank_overall,
+          raw = EXCLUDED.raw,
+          distance_category = EXCLUDED.distance_category;
+      `
+    );
+  }
+
+  const dbMs = Date.now() - tDb0;
+  console.log("db ms", dbMs)
+
+  return Response.json({
+    ok: true,
+    athleteId: athlete.id,
+    insertedOrUpdated: resultValues.length,
+    skipped: items.length - rows.length,
+    timings: { fetchMs, dbMs, totalMs: Date.now() - tAll0 },
+  });
+}

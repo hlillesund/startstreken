@@ -1,116 +1,165 @@
-import { prisma } from "@/lib/prisma";
-import { formatTime } from "@/components/utovere/utils";
+import type { Metadata } from "next";
 import Link from "next/link";
+import { prisma } from "@/lib/prisma";
+import { MAIN_DISTANCES, formatDateShort, formatPace, formatTime } from "@/components/utovere/utils";
 
-const LABELS: Record<string, string> = { "5K": "5K", "10K": "10K", HM: "Halvmaraton", M: "Maraton" };
-const ALLOWED = new Set(["5K", "10K", "HM", "M"]);
+export const dynamic = "force-dynamic";
 
-type Row = { athlete_id: string; display_name: string; gender: string; best_time_ms: bigint; rank: bigint };
+const ALLOWED = new Set<string>(MAIN_DISTANCES.map((d) => d.key));
 
-export default async function Topp100Page({
-  searchParams,
-}: {
-  searchParams: Promise<{ category?: string; year?: string }>;
-}) {
-  const params = await searchParams;
+type Row = {
+  athlete_id: string;
+  display_name: string;
+  birth_year: number | null;
+  best_time_ms: bigint;
+  rank: bigint;
+  club: string | null;
+  event_name: string | null;
+  start_date: Date | null;
+};
+
+type Search = { category?: string; year?: string; gender?: string };
+
+function parse(params: Search) {
+  const now = new Date().getFullYear();
   const category = ALLOWED.has(params.category ?? "") ? params.category! : "HM";
-  const year = Number(params.year ?? new Date().getFullYear());
+  const y = Number(params.year);
+  const year = Number.isInteger(y) && y >= 2000 && y <= now ? y : now;
+  const gender: "M" | "F" = params.gender === "F" ? "F" : "M";
+  return { category, year, gender, now };
+}
+
+export async function generateMetadata({ searchParams }: { searchParams: Promise<Search> }): Promise<Metadata> {
+  const { category, year, gender } = parse(await searchParams);
+  const dist = MAIN_DISTANCES.find((d) => d.key === category)!.label;
+  return {
+    title: `Topp 100 ${dist.toLowerCase()} ${gender === "F" ? "kvinner" : "menn"} ${year} – Startstreken`,
+    description: `De 100 raskeste norske ${gender === "F" ? "kvinnene" : "mennene"} på ${dist.toLowerCase()} i ${year}.`,
+  };
+}
+
+function href(p: { category: string; year: number; gender: string }) {
+  return `/utovere/topp100?category=${p.category}&gender=${p.gender}&year=${p.year}`;
+}
+
+export default async function Topp100Page({ searchParams }: { searchParams: Promise<Search> }) {
+  const { category, year, gender, now } = parse(await searchParams);
+  const dist = MAIN_DISTANCES.find((d) => d.key === category)!;
   const from = new Date(Date.UTC(year, 0, 1));
   const to = new Date(Date.UTC(year + 1, 0, 1));
 
-  const rows = await prisma.$queryRaw<Row[]>`
-    WITH best AS (
-      SELECT
-        r.athlete_id,
-        a.display_name,
-        a.gender,
-        MIN(r.time_ms) AS best_time_ms
-      FROM results r
-      JOIN races ra ON ra.id = r.race_id
-      JOIN events e ON e.id = ra.event_id
-      JOIN athletes a ON a.id = r.athlete_id
-      WHERE r.distance_category = ${category}
-        -- only fully imported events (profile-view history rows are partial fields)
-        AND NOT (r.raw ? 'ArrangementUID')
-        AND e.start_date >= ${from}
-        AND e.start_date < ${to}
-        AND a.gender IN ('M', 'F')
-      GROUP BY r.athlete_id, a.display_name, a.gender
-    ),
-    ranked AS (
-      SELECT *,
-        DENSE_RANK() OVER (PARTITION BY gender ORDER BY best_time_ms ASC) AS rank
-      FROM best
-    )
-    SELECT athlete_id::text, display_name, gender, best_time_ms::bigint, rank
-    FROM ranked
-    WHERE rank <= 100
-    ORDER BY gender, rank;
-  `;
+  let rows: Row[] = [];
+  let failed = false;
+  try {
+    rows = await prisma.$queryRaw<Row[]>`
+      WITH best AS (
+        SELECT DISTINCT ON (r.athlete_id)
+          r.athlete_id,
+          a.display_name,
+          a.birth_year,
+          r.time_ms AS best_time_ms,
+          r.club,
+          e.name AS event_name,
+          e.start_date
+        FROM results r
+        JOIN races ra ON ra.id = r.race_id
+        JOIN events e ON e.id = ra.event_id
+        JOIN athletes a ON a.id = r.athlete_id
+        WHERE r.distance_category = ${category}
+          -- only fully imported events (profile-view history rows are partial fields)
+          AND NOT (r.raw ? 'ArrangementUID')
+          AND r.time_ms > 0
+          AND e.start_date >= ${from}
+          AND e.start_date < ${to}
+          AND a.gender = ${gender}
+        ORDER BY r.athlete_id, r.time_ms ASC
+      ),
+      ranked AS (
+        SELECT *, DENSE_RANK() OVER (ORDER BY best_time_ms ASC) AS rank
+        FROM best
+      )
+      SELECT athlete_id::text, display_name, birth_year, best_time_ms::bigint, rank, club, event_name, start_date
+      FROM ranked
+      WHERE rank <= 100
+      ORDER BY rank, display_name;
+    `;
+  } catch (err) {
+    console.error("[topp100] error:", err);
+    failed = true;
+  }
 
-  const mens = rows.filter((r) => r.gender === "M");
-  const womens = rows.filter((r) => r.gender === "F");
-  const CATEGORIES = ["5K", "10K", "HM", "M"];
+  const years = [now, now - 1, now - 2];
 
   return (
-    <div className="cpn-root" style={{ paddingTop: "var(--topnav-h)" }}>
-      <header className="cpn-header">
-        <span className="cpn-logo">Løpsresultater</span>
-        <span className="cpn-header-right">{year} Season</span>
-      </header>
-
-      <div className="cpn-hero">
-        <div>
-          <div className="cpn-hero-eyebrow">Toppliste / {year}</div>
-          <h1 className="cpn-hero-title">Topp 100 — {LABELS[category]}</h1>
+    <div className="ss-page">
+      <div className="ss-container">
+        <div className="ss-pagehead">
+          <div className="ss-eyebrow">Topplister · {year}</div>
+          <h1 className="ss-h1" style={{ marginTop: 6 }}>
+            Topp 100 {dist.label.toLowerCase()}
+          </h1>
+          <p className="ss-sub">Beste tid per utøver i {year}, fra fullstendig importerte resultatlister.</p>
         </div>
-        <Link href="/utovere" className="cpn-back">&larr; Tilbake</Link>
-      </div>
 
-      <div style={{ padding: "0 24px 16px" }}>
-        <div className="cpn-tabs">
-          {CATEGORIES.map((cat) => (
-            <Link
-              key={cat}
-              href={`/utovere/topp100?category=${cat}&year=${year}`}
-              className={`cpn-tab${category === cat ? " active" : ""}`}
-            >
-              {cat === "HM" ? "HM" : cat === "M" ? "MAR" : cat}
-            </Link>
-          ))}
+        <div className="ss-filters" style={{ marginTop: 16 }}>
+          <nav className="ss-seg" aria-label="Distanse">
+            {MAIN_DISTANCES.map((d) => (
+              <Link key={d.key} href={href({ category: d.key, year, gender })} className={`ss-seg-btn${category === d.key ? " active" : ""}`} aria-current={category === d.key ? "page" : undefined}>
+                {d.short}
+              </Link>
+            ))}
+          </nav>
+          <nav className="ss-seg" aria-label="Kjønn">
+            {(["M", "F"] as const).map((g) => (
+              <Link key={g} href={href({ category, year, gender: g })} className={`ss-seg-btn${gender === g ? " active" : ""}`} aria-current={gender === g ? "page" : undefined}>
+                {g === "M" ? "Herrer" : "Damer"}
+              </Link>
+            ))}
+          </nav>
+          <nav className="ss-seg" aria-label="År">
+            {years.map((y) => (
+              <Link key={y} href={href({ category, year: y, gender })} className={`ss-seg-btn${year === y ? " active" : ""}`} aria-current={year === y ? "page" : undefined}>
+                {y}
+              </Link>
+            ))}
+          </nav>
         </div>
-      </div>
 
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 24, padding: "0 24px 48px" }}>
-        {(["M", "F"] as const).map((gender) => {
-          const list = gender === "M" ? mens : womens;
-          return (
-            <div key={gender}>
-              <div className="cpn-section-label">{gender === "M" ? "🏃 Herrer" : "🏃‍♀️ Damer"}</div>
-              <div className="cpn-table">
-                <div className="cpn-table-head">
-                  <div className="cpn-th" style={{ width: 40 }}>#</div>
-                  <div className="cpn-th">Navn</div>
-                  <div className="cpn-th" style={{ textAlign: "right" }}>Tid</div>
-                </div>
-                {list.map((row) => (
-                  <Link
-                    key={row.athlete_id}
-                    href={`/utovere?athleteId=${row.athlete_id}`}
-                    className="cpn-tr"
-                    style={{ display: "grid", gridTemplateColumns: "40px 1fr auto", textDecoration: "none" }}
-                  >
-                    <div className="cpn-td" style={{ color: "#888" }}>{Number(row.rank)}</div>
-                    <div className="cpn-td">{row.display_name}</div>
-                    <div className="cpn-td">
-                      <span className="cpn-time">{formatTime(Number(row.best_time_ms))}</span>
-                    </div>
-                  </Link>
-                ))}
-              </div>
-            </div>
-          );
-        })}
+        <section className="ss-section">
+          <div className="ss-card">
+            {failed && <div className="ss-empty">Kunne ikke laste topplisten akkurat nå.</div>}
+            {!failed && rows.length === 0 && <div className="ss-empty">Ingen resultater for {dist.label.toLowerCase()} i {year} ennå.</div>}
+            {rows.length > 0 && (
+              <ol className="ss-rank-table">
+                {rows.map((row) => {
+                  const rank = Number(row.rank);
+                  const ms = Number(row.best_time_ms);
+                  const date = row.start_date ? row.start_date.toISOString().slice(0, 10) : null;
+                  return (
+                    <li key={row.athlete_id}>
+                      <Link href={`/utovere?athleteId=${row.athlete_id}`} className="ss-rank-row">
+                        <span className={`ss-rank${rank <= 3 ? ` ss-rank--${rank}` : ""}`}>{rank}</span>
+                        <span style={{ minWidth: 0 }}>
+                          <span className="ss-lb-name" style={{ display: "block" }}>
+                            {row.display_name}
+                            {row.birth_year ? <span className="ss-muted" style={{ fontWeight: 500 }}> · {row.birth_year}</span> : null}
+                          </span>
+                          <span className="ss-lb-meta" style={{ display: "block" }}>
+                            {[row.club, row.event_name, formatDateShort(date)].filter(Boolean).join(" · ")}
+                          </span>
+                        </span>
+                        <span style={{ textAlign: "right" }}>
+                          <span className="ss-lb-time" style={{ display: "block" }}>{formatTime(ms)}</span>
+                          <span className="ss-lb-meta" style={{ display: "block" }}>{formatPace(ms, dist.meters)}</span>
+                        </span>
+                      </Link>
+                    </li>
+                  );
+                })}
+              </ol>
+            )}
+          </div>
+        </section>
       </div>
     </div>
   );

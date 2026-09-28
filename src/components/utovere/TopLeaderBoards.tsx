@@ -1,10 +1,10 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useState } from "react";
-import { formatTime } from "./utils";
+import { ChevronRight } from "lucide-react";
+import { MAIN_DISTANCES, formatTime } from "./utils";
 import type { AthleteHit } from "./types";
-
-const CATEGORIES = ["5K", "10K", "HM", "M"] as const;
 
 type Entry = {
   athlete_id: string;
@@ -20,286 +20,143 @@ type LeaderboardData = Record<string, CategoryData>;
 interface Props {
   year: number;
   onSelectAthlete?: (athlete: AthleteHit) => void;
+  title?: string;
 }
 
-const rankStyle: Record<number, React.CSSProperties> = {
-  1: {
-    background: "var(--fg)",
-    borderBottom: "1px solid var(--line)",
-  },
-  2: { background: "var(--bg-2)", borderBottom: "1px solid var(--line)" },
-  3: { background: "var(--bg-2)", borderBottom: "1px solid var(--line)" },
-};
-
-const rankBadgeStyle: Record<number, React.CSSProperties> = {
-  1: {
-    background: "var(--highlight)",
-    color: "var(--fg)",
-    fontFamily: "var(--font-display)",
-    fontSize: 15,
-    letterSpacing: "0.04em",
-    width: 24,
-    height: 24,
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    flexShrink: 0,
-  },
-  2: {
-    color: "var(--fg-3)",
-    fontFamily: "var(--font-mono)",
-    fontSize: 11,
-    width: 24,
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    flexShrink: 0,
-  },
-  3: {
-    color: "var(--fg-3)",
-    fontFamily: "var(--font-mono)",
-    fontSize: 11,
-    width: 24,
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    flexShrink: 0,
-  },
-};
-
-export default function TopLeaderboards({ year, onSelectAthlete }: Props) {
-  const [data, setData] = useState<LeaderboardData | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [activeCategory, setActiveCategory] = useState<string>("HM");
+export default function TopLeaderboards({ year, onSelectAthlete, title }: Props) {
+  const [res, setRes] = useState<{ year: number; data: LeaderboardData | null } | null>(null);
+  const [category, setCategory] = useState<string>("HM");
+  const [gender, setGender] = useState<"M" | "F">("M");
 
   useEffect(() => {
+    let cancelled = false;
     fetch(`/api/leaderboards?year=${year}`)
       .then((r) => r.json())
-      .then((d) => d.ok && setData(d.results))
-      .finally(() => setLoading(false));
+      .then((d) => !cancelled && setRes({ year, data: d?.ok ? d.results : null }))
+      .catch(() => !cancelled && setRes({ year, data: null }));
+    return () => {
+      cancelled = true;
+    };
   }, [year]);
 
-  const catData = data?.[activeCategory];
+  const loading = res?.year !== year;
+  const failed = !loading && !res?.data;
+  const catData = loading ? undefined : res?.data?.[category];
+
+  function row(entry: Entry, g: "M" | "F") {
+    const inner = (
+      <>
+        <span className={`ss-rank${entry.rank <= 3 ? ` ss-rank--${entry.rank}` : ""}`}>{entry.rank}</span>
+        <span className="ss-lb-body">
+          <span className="ss-lb-name" style={{ display: "block" }}>{entry.display_name}</span>
+          {(entry.club || entry.event_name) && (
+            <span className="ss-lb-meta" style={{ display: "block" }}>
+              {[entry.club, entry.event_name].filter(Boolean).join(" · ")}
+            </span>
+          )}
+        </span>
+        <span className="ss-lb-time">{formatTime(entry.best_time_ms)}</span>
+      </>
+    );
+    if (onSelectAthlete) {
+      return (
+        <button
+          type="button"
+          className="ss-lb-row"
+          onClick={() => onSelectAthlete({ id: entry.athlete_id, display_name: entry.display_name, birth_year: null, gender: g })}
+        >
+          {inner}
+        </button>
+      );
+    }
+    return (
+      <Link className="ss-lb-row" href={`/utovere?athleteId=${entry.athlete_id}`}>
+        {inner}
+      </Link>
+    );
+  }
 
   return (
-    <div className="cpn-leaderboards">
-
-      {/* ── Header ── */}
-      <div className="cpn-leaderboards-head">
-        <span
-          style={{
-            fontFamily: "var(--font-display)",
-            fontSize: 22,
-            letterSpacing: "0.06em",
-            color: "var(--fg)",
-          }}
-        >
-          Topplistene {year}
-        </span>
-        <span
-          style={{
-            fontFamily: "var(--font-mono)",
-            fontSize: 9,
-            letterSpacing: "0.18em",
-            textTransform: "uppercase",
-            color: "var(--fg-3)",
-            display: "flex",
-            alignItems: "center",
-            gap: 6,
-          }}
-        >
-          <span
-            style={{
-              width: 6,
-              height: 6,
-              background: "var(--success)",
-              borderRadius: "50%",
-              display: "inline-block",
-            }}
-          />
-          Live · Oppdatert nå
-        </span>
+    <section className="ss-card" aria-label={`Topplister ${year}`}>
+      <div className="ss-lb-head">
+        <div>
+          <h2 className="ss-h2">{title ?? `Topplister ${year}`}</h2>
+        </div>
+        <div className="ss-seg" role="tablist" aria-label="Distanse">
+          {MAIN_DISTANCES.map((d) => (
+            <button
+              key={d.key}
+              role="tab"
+              aria-selected={category === d.key}
+              className={`ss-seg-btn${category === d.key ? " active" : ""}`}
+              onClick={() => setCategory(d.key)}
+            >
+              {d.short}
+            </button>
+          ))}
+        </div>
       </div>
 
-      {/* ── Tabs ── */}
-      <div className="cpn-tabs" style={{ borderBottom: "1px solid var(--line-mid)" }}>
-        {CATEGORIES.map((cat) => (
-          <button
-            key={cat}
-            className={`cpn-tab${activeCategory === cat ? " active" : ""}`}
-            onClick={() => setActiveCategory(cat)}
-          >
-            {cat === "HM" ? "HM" : cat === "M" ? "MAR" : cat}
-          </button>
-        ))}
+      <div className="ss-lb-gender">
+        <div className="ss-seg ss-seg--full" role="tablist" aria-label="Kjønn">
+          {(["M", "F"] as const).map((g) => (
+            <button
+              key={g}
+              role="tab"
+              aria-selected={gender === g}
+              className={`ss-seg-btn${gender === g ? " active" : ""}`}
+              onClick={() => setGender(g)}
+            >
+              {g === "M" ? "Herrer" : "Damer"}
+            </button>
+          ))}
+        </div>
       </div>
 
-      {/* ── Loading ── */}
       {loading && (
-        <p className="cpn-empty" style={{ padding: "20px 24px" }}>
-          Laster toppliste…
-        </p>
+        <div className="ss-lb-cols">
+          {[0, 1].map((c) => (
+            <div key={c} className={`ss-lb-col${c === 0 ? " is-active" : ""}`}>
+              <ul className="ss-lb-list">
+                {Array.from({ length: 5 }, (_, i) => (
+                  <li key={i} style={{ display: "flex", gap: 12, alignItems: "center", padding: "12px 8px" }}>
+                    <span className="ss-skel" style={{ width: 28, height: 28, borderRadius: 999 }} />
+                    <span className="ss-skel" style={{ flex: 1, height: 14 }} />
+                    <span className="ss-skel" style={{ width: 52, height: 14 }} />
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ))}
+        </div>
       )}
 
-      {/* ── Gender columns ── */}
+      {!loading && failed && <div className="ss-empty">Kunne ikke laste topplistene akkurat nå.</div>}
+
       {!loading && catData && (
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: "1fr 1fr",
-          }}
-          className="cpn-lb-gender-grid"
-        >
-          {(["M", "F"] as const).map((gender, gi) => (
-            <div
-              key={gender}
-              style={{ borderRight: gi === 0 ? "1px solid var(--line-mid)" : "none" }}
-            >
-              {/* Gender label row */}
-              <div
-                style={{
-                  padding: "10px 20px",
-                  borderBottom: "1px solid var(--line)",
-                  background: "var(--bg-3)",
-                  fontFamily: "var(--font-mono)",
-                  fontSize: 9,
-                  letterSpacing: "0.2em",
-                  textTransform: "uppercase" as const,
-                  color: "var(--fg-2)",
-                }}
-              >
-                {gender === "M" ? "Herrer" : "Damer"}
-              </div>
-
-              {/* Top 3 rows */}
-              {catData[gender].slice(0, 3).map((entry) => {
-                const isFirst = entry.rank === 1;
-                return (
-                  <div
-                    key={entry.athlete_id}
-                    style={{
-                      display: "grid",
-                      gridTemplateColumns: "28px 1fr",
-                      alignItems: "center",
-                      gap: "8px 12px",
-                      padding: "12px 14px",
-                      cursor: onSelectAthlete ? "pointer" : "default",
-                      transition: "background 0.12s",
-                      ...(rankStyle[entry.rank] ?? {
-                        background: "var(--bg-2)",
-                        borderBottom: "1px solid var(--line)",
-                      }),
-                    }}
-                    onMouseEnter={(e) => {
-                      (e.currentTarget as HTMLDivElement).style.background = isFirst
-                        ? "#1c1c1c"
-                        : "var(--bg-3)";
-                    }}
-                    onMouseLeave={(e) => {
-                      (e.currentTarget as HTMLDivElement).style.background = isFirst
-                        ? "var(--fg)"
-                        : "var(--bg-2)";
-                    }}
-                    onClick={() =>
-                      onSelectAthlete?.({
-                        id: entry.athlete_id,
-                        display_name: entry.display_name,
-                        birth_year: null,
-                        gender,
-                      })
-                    }
-                  >
-                    {/* Rank badge */}
-                    <div style={rankBadgeStyle[entry.rank] ?? { color: "var(--fg-3)", fontSize: 11, width: 24 }}>
-                      {entry.rank}
-                    </div>
-
-                    {/* Name + time + club */}
-                    <div style={{ display: "flex", flexDirection: "column", gap: 3, minWidth: 0 }}>
-                      <div style={{ display: "flex", alignItems: "baseline", gap: 8, flexWrap: "wrap" }}>
-                        <span
-                          style={{
-                            fontFamily: "var(--font-body)",
-                            fontSize: 13,
-                            fontWeight: 700,
-                            color: isFirst ? "#ffffff" : "var(--fg)",
-                            lineHeight: 1.2,
-                          }}
-                        >
-                          {entry.display_name}
-                        </span>
-                        <span
-                          style={{
-                            fontFamily: "var(--font-display)",
-                            fontSize: 16,
-                            letterSpacing: "0.04em",
-                            lineHeight: 1,
-                            color: isFirst ? "var(--highlight)" : "var(--fg)",
-                            whiteSpace: "nowrap",
-                            flexShrink: 0,
-                          }}
-                        >
-                          {formatTime(entry.best_time_ms)}
-                        </span>
-                      </div>
-                      {entry.club && (
-                        <span
-                          style={{
-                            fontFamily: "var(--font-mono)",
-                            fontSize: 9,
-                            color: isFirst ? "rgba(255,255,255,0.45)" : "var(--fg-3)",
-                            whiteSpace: "nowrap",
-                            overflow: "hidden",
-                            textOverflow: "ellipsis",
-                          }}
-                        >
-                          {entry.club}
-                        </span>
-                      )}
-                      {entry.event_name && (
-                        <span
-                          style={{
-                            fontFamily: "var(--font-mono)",
-                            fontSize: 9,
-                            fontStyle: "italic",
-                            color: isFirst ? "rgba(255,255,255,0.35)" : "var(--fg-3)",
-                            whiteSpace: "nowrap",
-                            overflow: "hidden",
-                            textOverflow: "ellipsis",
-                          }}
-                        >
-                          {entry.event_name}
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                );
-              })}
-
-              {catData[gender].length === 0 && (
-                <div
-                  style={{
-                    padding: "16px 20px",
-                    fontFamily: "var(--font-mono)",
-                    fontSize: 11,
-                    color: "var(--fg-3)",
-                  }}
-                >
-                  Ingen data
-                </div>
+        <div className="ss-lb-cols">
+          {(["M", "F"] as const).map((g) => (
+            <div key={g} className={`ss-lb-col${gender === g ? " is-active" : ""}`}>
+              <div className="ss-lb-col-title">{g === "M" ? "Herrer" : "Damer"}</div>
+              {catData[g].length === 0 ? (
+                <div className="ss-empty">Ingen resultater ennå</div>
+              ) : (
+                <ul className="ss-lb-list">
+                  {catData[g].map((entry) => (
+                    <li key={entry.athlete_id}>{row(entry, g)}</li>
+                  ))}
+                </ul>
               )}
             </div>
           ))}
         </div>
       )}
 
-      {/* ── Footer link ── */}
-      <a
-        href={`/utovere/topp100?category=${activeCategory}&year=${year}`}
-        className="cpn-topp100-link"
-      >
-        Se topp 100 &rarr;
-      </a>
-    </div>
+      <div className="ss-lb-foot">
+        <Link href={`/utovere/topp100?category=${category}&year=${year}&gender=${gender}`} className="ss-link">
+          Se hele topplisten <ChevronRight size={16} />
+        </Link>
+      </div>
+    </section>
   );
 }

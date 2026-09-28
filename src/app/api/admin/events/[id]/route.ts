@@ -13,6 +13,7 @@ export async function GET(
     where: { id },
     include: {
       event_series: true,
+      sources: { select: { slug: true } },
       races: {
         include: {
           _count: { select: { results: true } },
@@ -35,6 +36,7 @@ export async function GET(
       id:              ev.id,
       name:            ev.name,
       source_event_id: ev.source_event_id,
+      source_slug:     ev.sources.slug,
       start_date:      ev.start_date?.toISOString().split("T")[0] ?? null,
       location:        ev.location,
       pretty_url:      ev.pretty_url,

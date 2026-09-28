@@ -1,12 +1,31 @@
-export function inferGenderFromCategory(category: string | null | undefined): string | null {
+/**
+ * Gender from a class/category label: "M23", "K40", "Menn 40-44", "Kvinner", "H50",
+ * "D35", "W45", "Women", "Jenter 12", "Gutter 14", "F" / "M".
+ */
+export function inferGenderFromCategory(category: string | null | undefined): "M" | "F" | null {
   if (!category) return null;
-  const c = category.trim();
-  if (/^[Mm]/.test(c)) return "M";
-  if (/^[FfKk]/.test(c)) return "F";
+  const c = category.trim().toLowerCase();
+  if (!c) return null;
+  if (/^(kvinne|kvinner|dame|damer|women|woman|female|jenter|jente|girls?|dam)\b/.test(c)) return "F";
+  if (/^(menn|mann|herre|herrer|men|man|male|gutter|gutt|boys?)\b/.test(c)) return "M";
+  if (/^[kfwd][sjv]?(\d|$|[\s_-])/.test(c)) return "F";
+  if (/^[mh][sjv]?(\d|$|[\s_-])/.test(c)) return "M";
+  if (/^[mh]\s?(senior|junior|veteran|jr|sr|u\d)/.test(c)) return "M";
+  if (/^[kfwd]\s?(senior|junior|veteran|jr|sr|u\d)/.test(c)) return "F";
   return null;
 }
 
-export function inferGenderFromName(displayName: string | null | undefined): string | null {
+/** Normalises explicit gender values ("M", "f", "Male", "Kvinne", "K", "W") to "M" | "F". */
+export function normalizeGender(value: unknown): "M" | "F" | null {
+  if (value === null || value === undefined) return null;
+  const v = String(value).trim().toLowerCase();
+  if (!v) return null;
+  if (["m", "male", "man", "men", "mann", "menn", "h", "herre", "herrer", "g", "gutt"].includes(v)) return "M";
+  if (["f", "k", "w", "d", "female", "woman", "women", "kvinne", "kvinner", "dame", "damer", "j", "jente"].includes(v)) return "F";
+  return null;
+}
+
+export function inferGenderFromName(displayName: string | null | undefined): "M" | "F" | null {
   if (!displayName) return null;
   const first = displayName.trim().split(/\s+/)[0];
 
@@ -90,6 +109,6 @@ export function inferGenderFromName(displayName: string | null | undefined): str
 export function inferGender(
   category: string | null | undefined,
   displayName: string | null | undefined
-): string | null {
+): "M" | "F" | null {
   return inferGenderFromCategory(category) ?? inferGenderFromName(displayName);
 }

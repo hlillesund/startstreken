@@ -527,6 +527,7 @@ model events {
   sources         sources       @relation(fields: [source_id], references: [id], onUpdate: NoAction)
   event_series    event_series? @relation(fields: [series_id], references: [id], onDelete: SetNull, onUpdate: Cascade)  // ← ADD HERE
   races           races[]
+  import_queue    import_queue[]
 
   @@unique([source_id, source_event_id])
   @@index([source_id], map: "events_source_idx")
@@ -542,8 +543,58 @@ model import_runs {
   started_at      DateTime  @default(now()) @db.Timestamptz(6)
   finished_at     DateTime? @db.Timestamptz(6)
   error           String?
+  trigger         String?
+  event_id        String?   @db.Uuid
+  stats           Json?
   sources         sources   @relation(fields: [source_id], references: [id], onUpdate: NoAction)
 
+  @@index([started_at(sort: Desc)], map: "import_runs_started_idx")
+  @@schema("public")
+}
+
+/// Events discovered at timing providers, waiting to be (or already) imported.
+model import_queue {
+  id              String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  source_slug     String
+  source_event_id String
+  name            String?
+  event_date      DateTime? @db.Date
+  location        String?
+  country         String?
+  sport           String?
+  relevance       String    @default("running")
+  status          String    @default("pending")
+  approved        Boolean?
+  attempts        Int       @default(0)
+  last_error      String?
+  next_attempt_at DateTime  @default(now()) @db.Timestamptz(6)
+  last_attempt_at DateTime? @db.Timestamptz(6)
+  locked_at       DateTime? @db.Timestamptz(6)
+  imported_at     DateTime? @db.Timestamptz(6)
+  refresh_at      DateTime? @db.Timestamptz(6)
+  result_count    Int?
+  event_id        String?   @db.Uuid
+  meta            Json?
+  discovered_at   DateTime  @default(now()) @db.Timestamptz(6)
+  updated_at      DateTime  @default(now()) @db.Timestamptz(6)
+  events          events?   @relation(fields: [event_id], references: [id], onDelete: SetNull, onUpdate: NoAction)
+
+  @@unique([source_slug, source_event_id])
+  @@index([status, next_attempt_at], map: "import_queue_due_idx")
+  @@index([event_date(sort: Desc)], map: "import_queue_date_idx")
+  @@schema("public")
+}
+
+model crawl_runs {
+  id          String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  trigger     String
+  status      String    @default("started")
+  started_at  DateTime  @default(now()) @db.Timestamptz(6)
+  finished_at DateTime? @db.Timestamptz(6)
+  stats       Json?
+  error       String?
+
+  @@index([started_at(sort: Desc)], map: "crawl_runs_started_idx")
   @@schema("public")
 }
 

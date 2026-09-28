@@ -3847,3 +3847,72 @@ body {
   .cmp-table-head,
   .cmp-table-row { overflow-x: auto; }
 }
+/* ============================================================
+   ADMIN IMPORT  (imp-*)  — /admin/import
+============================================================ */
+.imp-body { padding: 20px 24px 48px; max-width: 1280px; margin: 0 auto; }
+.imp-panel { display: flex; flex-direction: column; gap: 18px; }
+.imp-card { background: #fff; border: 1px solid #e8e5e0; padding: 20px 22px; }
+.imp-card--flush { padding: 0; }
+.imp-card--flush .adm-toolbar { border-bottom: 1px solid #e8e5e0; }
+.imp-card-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
+.imp-h2 { font-family: var(--font-mono); font-size: 12px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; margin: 0 0 6px; color: var(--fg); }
+.imp-help { font-size: 13px; color: var(--fg-2); line-height: 1.55; margin: 0 0 16px; max-width: 760px; }
+.imp-meta { font-family: var(--font-mono); font-size: 11px; color: var(--fg-2); }
+.imp-row { display: flex; gap: 14px; flex-wrap: wrap; align-items: flex-start; margin-bottom: 12px; }
+.imp-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; }
+.imp-actions { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-top: 16px; }
+.imp-actions .adm-btn, .imp-card-head .adm-btn { display: inline-flex; align-items: center; gap: 8px; }
+.imp-disclosure { background: none; border: none; padding: 6px 0; cursor: pointer; font-family: var(--font-mono); font-size: 11px; letter-spacing: 0.06em; color: var(--fg-2); }
+.imp-disclosure:hover { color: var(--fg); }
+.imp-overrides { background: #f8f7f5; border: 1px solid #e8e5e0; padding: 14px 16px; margin-top: 8px; }
+.imp-check { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--fg-2); margin-top: 12px; cursor: pointer; }
+.imp-warnings { list-style: none; margin: 12px 0 0; padding: 0; font-family: var(--font-mono); font-size: 11px; color: #92400e; line-height: 1.7; }
+.imp-toplink { margin-left: 14px; text-decoration: none; color: #888; }
+.imp-toplink:hover { color: var(--highlight); }
+
+.imp-stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 1px; background: #e8e5e0; border: 1px solid #e8e5e0; margin-top: 16px; }
+.imp-stat { background: #fff; padding: 12px 14px; display: flex; flex-direction: column; gap: 4px; }
+.imp-stat-label { font-family: var(--font-mono); font-size: 10px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--fg-3); }
+.imp-stat-value { font-family: var(--font-mono); font-size: 16px; font-weight: 600; color: var(--fg); display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.imp-stat-sub { font-family: var(--font-mono); font-size: 10px; color: var(--fg-2); }
+
+.imp-log { margin-top: 14px; max-height: 220px; overflow-y: auto; background: #1a1a1a; color: #d4d4d4; font-family: var(--font-mono); font-size: 11px; line-height: 1.7; padding: 10px 14px; }
+
+.imp-subtabs { display: flex; gap: 2px; flex-wrap: wrap; }
+.imp-subtab { padding: 7px 12px; border: 1px solid transparent; background: transparent; cursor: pointer; font-family: var(--font-mono); font-size: 10px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--fg-2); display: inline-flex; gap: 6px; align-items: center; }
+.imp-subtab:hover { color: var(--fg); background: #f4f3f0; }
+.imp-subtab.act { background: #1a1a1a; color: var(--highlight); }
+.imp-subtab-count { font-size: 9px; opacity: 0.7; }
+
+.imp-badge { display: inline-block; padding: 2px 8px; font-family: var(--font-mono); font-size: 10px; font-weight: 600; letter-spacing: 0.06em; white-space: nowrap; }
+.imp-badge--ok { background: #dcfce7; color: #166534; }
+.imp-badge--warn { background: #fef3c7; color: #92400e; }
+.imp-badge--info { background: #e0f2fe; color: #0369a1; }
+.imp-badge--err { background: #fee2e2; color: #991b1b; }
+.imp-badge--muted { background: #f3f4f6; color: #6b7280; }
+.imp-badge--neutral { background: #f4f3f0; color: #444; border: 1px solid #e0ddd9; }
+.imp-sub { display: block; font-family: var(--font-mono); font-size: 10px; color: var(--fg-3); margin-top: 3px; }
+.imp-err { display: block; font-family: var(--font-mono); font-size: 10px; color: #b91c1c; margin-top: 3px; max-width: 360px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.imp-maybe { color: #b45309; }
+.imp-detail { background: #f8f7f5; font-family: var(--font-mono); font-size: 11px; color: #555; line-height: 1.7; padding: 12px 16px !important; }
+
+.imp-dist { display: inline-block; padding: 1px 7px; font-family: var(--font-mono); font-size: 10px; font-weight: 700; letter-spacing: 0.1em; }
+.imp-dist--d5 { background: #e0f2fe; color: #0369a1; }
+.imp-dist--d10 { background: #dcfce7; color: #166534; }
+.imp-dist--dhm { background: #fef9c3; color: #854d0e; }
+.imp-dist--dm { background: #fee2e2; color: #991b1b; }
+.imp-dist--dother { background: #f3f4f6; color: #6b7280; }
+
+.imp-date-input { padding: 4px 6px; font-size: 11px; width: 130px; }
+.imp-linkbtn { background: none; border: none; padding: 0 0 0 6px; cursor: pointer; font: inherit; color: #1a1a1a; text-decoration: underline; }
+
+/* the base spinner is yellow-on-dark; make it visible on light buttons/rows */
+.adm-btn--ghost .adm-spinner, .adm-table .adm-spinner, .adm-btn--danger .adm-spinner { border-color: rgba(0,0,0,0.15); border-top-color: #1a1a1a; }
+
+@media (max-width: 640px) {
+  .imp-body { padding: 12px 12px 40px; }
+  .imp-card { padding: 16px; }
+  .adm-topbar { height: auto; padding: 8px 12px; flex-wrap: wrap; gap: 6px; }
+  .adm-topbar .adm-tabs { max-width: 100%; overflow-x: auto; }
+}

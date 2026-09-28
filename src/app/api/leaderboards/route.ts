@@ -41,6 +41,8 @@ export async function GET(req: Request) {
           JOIN events e ON e.id = ra.event_id
           JOIN athletes a ON a.id = r.athlete_id
           WHERE r.distance_category = ${category}
+            -- only fully imported events (profile-view history rows are partial fields)
+            AND NOT (r.raw ? 'ArrangementUID')
             AND e.start_date >= ${from}
             AND e.start_date < ${to}
             AND a.gender IN ('M', 'F')

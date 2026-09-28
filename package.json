@@ -7,7 +7,8 @@
     "build": "next build",
     "postinstall": "prisma generate",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "crawl": "tsx --tsconfig tsconfig.json scripts/crawl.ts"
   },
   "dependencies": {
     "@prisma/client": "^6.19.2",

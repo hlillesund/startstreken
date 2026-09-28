@@ -35,6 +35,7 @@ interface EventDetail {
   id: string;
   name: string;
   source_event_id: string;
+  source_slug: string;
   start_date: string | null;
   location: string | null;
   pretty_url: string | null;
@@ -627,18 +628,15 @@ function EventDrawer({
 
   // Reimport state
   const [showReimport, setShowReimport] = useState(false);
-  const [importSource, setImportSource] = useState<"eqtiming" | "ultimate" | "raceresult">("eqtiming");
-  const [eqEventId, setEqEventId]       = useState(event.source_event_id ?? "");
-  const [eqReportId, setEqReportId]     = useState(""); // used as: ultimate distance, rr key
-  const [rrExtra, setRrExtra]           = useState({ listName: "Online|Final", contest: "0", filter: "" });
+  const [ultDistance, setUltDistance]   = useState("");
+  const [ultNation, setUltNation]       = useState("");
   const [importing, setImporting]       = useState(false);
   const [importResult, setImportResult] = useState<{
     ok: boolean;
-    message?: string;
     error?: string;
     inserted?: number;
-    skipped?: number;
-    summary?: unknown;
+    races?: { id: string; name: string; category: string; results: number }[];
+    warnings?: string[];
   } | null>(null);
 
   function mark<T>(setter: (v: T) => void) {
@@ -659,40 +657,26 @@ function EventDrawer({
   }
 
   async function runReimport() {
-    if (!eqEventId.trim()) {
-      setImportResult({ ok: false, error: "Event ID er påkrevd." });
-      return;
-    }
     setImporting(true);
     setImportResult(null);
-
-    const payload: Record<string, unknown> = {
-      sourceSlug: importSource,
-    };
-
-    if (importSource === "eqtiming") {
-      payload.eq_eventId = eqEventId.trim();
-    } else if (importSource === "ultimate") {
-      payload.ult_eventId  = eqEventId.trim();
-      payload.ult_distance = eqReportId.trim() || undefined;
-      payload.ult_mode     = "NOR";
-    } else if (importSource === "raceresult") {
-      payload.rr_eventId  = eqEventId.trim();
-      payload.rr_key      = eqReportId.trim();
-      payload.rr_listName = rrExtra.listName;
-      payload.rr_contest  = rrExtra.contest;
-      payload.rr_filter   = rrExtra.filter;
-    }
-
     try {
       const res = await fetch(`/api/admin/events/${event.id}/reimport`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
+        body: JSON.stringify(
+          event.source_slug === "ultimate" ? { ultimateDistance: ultDistance.trim(), nation: ultNation.trim() } : {}
+        ),
       }).then((r) => r.json());
       setImportResult(res);
-      if (res.ok) toast("Import OK ✓");
-      else toast(res.error ?? "Import feilet", "err");
+      if (res.ok) {
+        toast("Import OK ✓");
+        setRaces((prev) =>
+          prev.map((r) => {
+            const fresh = res.races?.find((x: { id: string }) => x.id === r.id);
+            return fresh ? { ...r, result_count: fresh.results } : r;
+          })
+        );
+      } else toast(res.error ?? "Import feilet", "err");
     } catch {
       setImportResult({ ok: false, error: "Nettverksfeil" });
       toast("Nettverksfeil", "err");
@@ -713,8 +697,8 @@ function EventDrawer({
 
           {/* ── Source ID ── */}
           <div className="adm-field">
-            <label className="adm-label">Kilde-ID (eqtiming event ID)</label>
-            <div className="adm-readonly">{event.source_event_id}</div>
+            <label className="adm-label">Kilde</label>
+            <div className="adm-readonly">{event.source_slug} #{event.source_event_id}</div>
           </div>
 
           {/* ── Name ── */}
@@ -802,147 +786,42 @@ function EventDrawer({
             {showReimport && (
               <div className="adm-reimport-box">
                 <p className="adm-reimport-help">
-                  Reimporter fra tidtakingssystem. Eksisterende resultater for dette eventet
-                  slettes og erstattes med nye.
+                  Henter eventet på nytt fra {event.source_slug} (#{event.source_event_id}) og erstatter resultatene i
+                  alle distansene. Navn, dato og distanse-overrides du har satt her beholdes.
                 </p>
 
-                {/* Source selector */}
-                <div className="adm-field" style={{ marginTop: 12 }}>
-                  <label className="adm-label">Kilde</label>
-                  <div className="adm-source-pills">
-                    {(["eqtiming", "ultimate", "raceresult"] as const).map((s) => (
-                      <button
-                        key={s}
-                        type="button"
-                        className={`adm-source-pill${(body: any) => body}${eqEventId !== undefined && s === "eqtiming" ? "" : ""}`}
-                        style={{
-                          padding: "6px 14px",
-                          fontFamily: "var(--font-mono)",
-                          fontSize: 10,
-                          fontWeight: 700,
-                          letterSpacing: "0.1em",
-                          textTransform: "uppercase",
-                          border: "1px solid",
-                          cursor: "pointer",
-                          transition: "all 0.12s",
-                          background: importSource === s ? "#1a1a1a" : "#fff",
-                          color: importSource === s ? "var(--highlight)" : "var(--fg-3)",
-                          borderColor: importSource === s ? "#1a1a1a" : "var(--line-mid)",
-                        }}
-                        onClick={() => { setImportSource(s); setImportResult(null); }}
-                      >
-                        {s}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-                {/* eqtiming fields */}
-                {importSource === "eqtiming" && (
-                  <div className="adm-field" style={{ marginTop: 12 }}>
-                    <label className="adm-label">eqtiming Event ID</label>
-                    <input
-                      className="adm-input adm-input--mono"
-                      placeholder="f.eks. 80410"
-                      value={eqEventId}
-                      onChange={(e) => setEqEventId(e.target.value)}
-                    />
-                    <span className="adm-field-hint">
-                      Forhåndsutfylt fra kilde-ID: <strong>{event.source_event_id}</strong>.
-                      Endre kun hvis du vil reimportere fra et annet event.
-                    </span>
-                  </div>
-                )}
-
-                {/* ultimate fields */}
-                {importSource === "ultimate" && (
+                {event.source_slug === "ultimate" && (
                   <div className="adm-field-row" style={{ marginTop: 12 }}>
                     <div className="adm-field">
-                      <label className="adm-label">Ultimate Event ID</label>
+                      <label className="adm-label">Kun distanse-ID (valgfritt)</label>
                       <input
                         className="adm-input adm-input--mono"
-                        placeholder="f.eks. 6581"
-                        value={eqEventId}
-                        onChange={(e) => setEqEventId(e.target.value)}
+                        placeholder="alle"
+                        value={ultDistance}
+                        onChange={(e) => setUltDistance(e.target.value)}
                       />
                     </div>
                     <div className="adm-field">
-                      <label className="adm-label">Distance (valgfritt)</label>
+                      <label className="adm-label">Kun nasjon (valgfritt)</label>
                       <input
                         className="adm-input adm-input--mono"
-                        placeholder="f.eks. 1 eller 2"
-                        value={eqReportId}
-                        onChange={(e) => setEqReportId(e.target.value)}
+                        placeholder="f.eks. NOR"
+                        value={ultNation}
+                        onChange={(e) => setUltNation(e.target.value)}
                       />
-                      <span className="adm-field-hint">Maraton=1, halvmaraton=2 (varierer per event)</span>
                     </div>
                   </div>
-                )}
-
-                {/* raceresult fields */}
-                {importSource === "raceresult" && (
-                  <>
-                    <div className="adm-field-row" style={{ marginTop: 12 }}>
-                      <div className="adm-field">
-                        <label className="adm-label">Event ID</label>
-                        <input
-                          className="adm-input adm-input--mono"
-                          placeholder="f.eks. 258952"
-                          value={eqEventId}
-                          onChange={(e) => setEqEventId(e.target.value)}
-                        />
-                      </div>
-                      <div className="adm-field">
-                        <label className="adm-label">Key</label>
-                        <input
-                          className="adm-input adm-input--mono"
-                          placeholder="api key"
-                          value={eqReportId}
-                          onChange={(e) => setEqReportId(e.target.value)}
-                        />
-                      </div>
-                    </div>
-                    <div className="adm-field-row" style={{ marginTop: 8 }}>
-                      <div className="adm-field">
-                        <label className="adm-label">listName</label>
-                        <input
-                          className="adm-input adm-input--mono"
-                          defaultValue="Online|Final"
-                          value={rrExtra.listName}
-                          onChange={(e) => setRrExtra((p) => ({ ...p, listName: e.target.value }))}
-                        />
-                      </div>
-                      <div className="adm-field">
-                        <label className="adm-label">Contest</label>
-                        <input
-                          className="adm-input adm-input--mono"
-                          defaultValue="0"
-                          value={rrExtra.contest}
-                          onChange={(e) => setRrExtra((p) => ({ ...p, contest: e.target.value }))}
-                        />
-                      </div>
-                    </div>
-                    <div className="adm-field" style={{ marginTop: 8 }}>
-                      <label className="adm-label">Filter (valgfritt)</label>
-                      <input
-                        className="adm-input adm-input--mono"
-                        placeholder='f.eks "10 km" eller tom'
-                        value={rrExtra.filter}
-                        onChange={(e) => setRrExtra((p) => ({ ...p, filter: e.target.value }))}
-                      />
-                    </div>
-                  </>
                 )}
 
                 <button
                   className="adm-btn adm-btn--import"
                   onClick={runReimport}
-                  disabled={importing || !eqEventId.trim()}
+                  disabled={importing}
                   style={{ marginTop: 14 }}
                 >
                   {importing
                     ? <><span className="adm-spinner" /> Importerer…</>
-                    : `↓ Kjør ${importSource} import`
+                    : `↓ Reimporter fra ${event.source_slug}`
                   }
                 </button>
 
@@ -952,19 +831,20 @@ function EventDrawer({
                       <>
                         <div className="adm-reimport-result-title">✓ Import fullført</div>
                         <div className="adm-reimport-result-line">
-                          {importResult.inserted != null && (
-                            <span>{Number(importResult.inserted).toLocaleString("nb-NO")} resultater importert</span>
-                          )}
-                          {(importResult.skipped ?? 0) > 0 && (
-                            <span className="adm-reimport-skipped">{importResult.skipped} hoppet over</span>
-                          )}
+                          {Number(importResult.inserted ?? 0).toLocaleString("nb-NO")} resultater importert
                         </div>
-                        {/* Show raw summary if available */}
-                        {importResult.summary && (
-                          <pre className="adm-reimport-pre">
-                            {JSON.stringify(importResult.summary, null, 2)}
-                          </pre>
+                        {importResult.races && (
+                          <div className="adm-reimport-races">
+                            {importResult.races.map((r) => (
+                              <span key={r.id} className="adm-reimport-race-tag">
+                                {r.name} · {r.category} · {r.results}
+                              </span>
+                            ))}
+                          </div>
                         )}
+                        {importResult.warnings?.map((w, i) => (
+                          <div key={i} className="adm-reimport-result-line">⚠ {w}</div>
+                        ))}
                       </>
                     ) : (
                       <>

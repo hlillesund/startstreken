@@ -1,5 +1,6 @@
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
+import { touchLop } from "@/lib/lop/index";
 import { resolveAthletes, type ResolveStats } from "./athletes";
 import { classifyRace, isDistanceCategory, isParaClass, sanitizeCategory, type DistanceCategory } from "./distance";
 import { fixDayOffset, isoDate, MAX_TIME_MS, toDateOnly } from "./text";
@@ -224,6 +225,7 @@ export async function persistEvent(ev: NormalizedEvent, override: ImportOverride
     summaryRaces.push({ id: raceId, sourceRaceId: race.sourceRaceId, name: raceName, category, distanceM, results: data.length });
   }
 
+  touchLop();
   return {
     eventId: event.id,
     sourceEventId: ev.sourceEventId,

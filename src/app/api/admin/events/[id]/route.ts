@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { invalidateLop } from "@/lib/lop/index";
 
 export const dynamic = "force-dynamic";
 
@@ -77,5 +78,7 @@ export async function PATCH(
     data,
   });
 
+  // Name, date and series decide how events group into løp.
+  invalidateLop();
   return NextResponse.json({ ok: true, id: updated.id });
 }

@@ -22,9 +22,7 @@ type RecentEvent = {
 const nf = new Intl.NumberFormat("nb-NO");
 
 function raceHref(ev: RecentEvent) {
-  // /lop/[id] resolves an event by name with hyphens standing in for spaces
-  if (ev.name.includes("-") || ev.categories.length === 0) return null;
-  return `/lop/${encodeURIComponent(ev.name.trim().replace(/\s+/g, "-"))}?category=${ev.categories[0]}`;
+  return `/lop/${ev.id}`;
 }
 
 function RecentRaces() {
@@ -122,9 +120,7 @@ export default function HomeClient() {
       <section className="ss-hero">
         <div className="ss-container">
           <div className="ss-hero-inner">
-            <span className="ss-hero-kicker">
-              <span className="ss-live-dot" /> Sesongen {year} · oppdateres fortløpende
-            </span>
+            
             <h1 className="ss-hero-title">
               Alle løpsresultater.
               <br />
@@ -141,12 +137,7 @@ export default function HomeClient() {
               onSubmit={(q) => router.push(`/utovere?q=${encodeURIComponent(q)}`)}
             />
 
-            <div className="ss-hero-quick">
-              <span>Populært:</span>
-              <Link href="/utovere/topp100?category=HM">Topp 100 halvmaraton</Link>
-              <Link href="/utovere/topp100?category=10K">Topp 100 10 km</Link>
-              <Link href="/utovere/sammenlign">Sammenlign løpere</Link>
-            </div>
+           
           </div>
         </div>
       </section>

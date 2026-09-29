@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { invalidateLop } from "@/lib/lop/index";
 import { classifyRace, isDistanceCategory, minPlausibleMs } from "@/lib/import/distance";
 
 export const dynamic = "force-dynamic";
@@ -45,5 +46,6 @@ export async function PATCH(
     }
   }
 
+  invalidateLop();
   return NextResponse.json({ ok: true, resultsUpdated });
 }

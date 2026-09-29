@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { ArrowLeft, Check, GitCompareArrows, Share2 } from "lucide-react";
+import { ArrowLeft, Check, ChevronRight, GitCompareArrows, Share2 } from "lucide-react";
 import AthleteSearch from "@/components/AthleteSearch";
 import TrendChart from "@/components/utovere/TrendChart";
 import TopLeaderboards from "@/components/utovere/TopLeaderBoards";
@@ -118,6 +118,8 @@ function Profile({
     return n > 0 ? best : byCat.has("OTHER") ? "OTHER" : "HM";
   }, [byCat]);
   const cat = filter ?? defaultCat;
+  // "Annet" is a mix of unrelated distances: no records, trend or season stats there.
+  const isOther = cat === "OTHER";
 
   const club = useMemo(() => mostCommon(results.map((r) => r.club)), [results]);
   const age = athlete.birth_year ? YEAR - athlete.birth_year : null;
@@ -139,9 +141,9 @@ function Profile({
   const sorted = useMemo(
     () =>
       rows.slice().sort((a, b) =>
-        sortBy === "time" ? a.time_ms - b.time_ms : (b.start_date ?? "").localeCompare(a.start_date ?? "")
+        sortBy === "time" && !isOther ? a.time_ms - b.time_ms : (b.start_date ?? "").localeCompare(a.start_date ?? "")
       ),
-    [rows, sortBy]
+    [rows, sortBy, isOther]
   );
 
   async function share() {
@@ -246,7 +248,7 @@ function Profile({
             ))}
           </div>
 
-          {rows.length > 0 && (
+          {rows.length > 0 && !isOther && (
             <div className="ss-card ss-kpis">
               <div className="ss-kpi">
                 <div className="ss-kpi-label">Personlig rekord</div>
@@ -279,7 +281,7 @@ function Profile({
             </div>
           )}
 
-          {rows.length > 1 && (
+          {rows.length > 1 && !isOther && (
             <section className="ss-card ss-card-pad" style={{ marginTop: 12 }}>
               <h2 className="ss-h3" style={{ marginBottom: 12 }}>Utvikling</h2>
               <TrendChart rows={rows} />
@@ -287,20 +289,22 @@ function Profile({
           )}
 
           {rows.length > 0 && (
-            <section className="ss-card" style={{ marginTop: 12, marginBottom: 32 }}>
+            <section className="ss-card" style={{ marginTop: isOther ? 0 : 12, marginBottom: 32 }}>
               <div className="ss-toolbar">
                 <h2 className="ss-h3">
                   {cat === "OTHER" ? "Andre distanser" : MAIN_DISTANCES.find((d) => d.key === cat)?.label}
                   <span className="ss-muted" style={{ fontWeight: 500 }}> · {rows.length} løp</span>
                 </h2>
-                <div className="ss-seg" aria-label="Sortering">
-                  <button className={`ss-seg-btn${sortBy === "date" ? " active" : ""}`} onClick={() => setSortBy("date")}>Nyeste</button>
-                  <button className={`ss-seg-btn${sortBy === "time" ? " active" : ""}`} onClick={() => setSortBy("time")}>Raskeste</button>
-                </div>
+                {!isOther && (
+                  <div className="ss-seg" aria-label="Sortering">
+                    <button className={`ss-seg-btn${sortBy === "date" ? " active" : ""}`} onClick={() => setSortBy("date")}>Nyeste</button>
+                    <button className={`ss-seg-btn${sortBy === "time" ? " active" : ""}`} onClick={() => setSortBy("time")}>Raskeste</button>
+                  </div>
+                )}
               </div>
               <ul className="ss-results">
                 {sorted.map((r, i) => {
-                  const isPb = pb === r;
+                  const isPb = !isOther && pb === r;
                   const gTotal = athlete.gender === "M" ? r.total_finishers_m : athlete.gender === "F" ? r.total_finishers_f : null;
                   const podium = r.rank_overall != null && r.rank_overall <= 3;
                   const place =
@@ -312,8 +316,8 @@ function Profile({
                       ? `${r.rank_gender}. ${athlete.gender === "F" ? "dame" : "herre"}`
                       : null;
                   const pace = formatPace(r.time_ms, meters);
-                  return (
-                    <li key={`${r.race_id}-${r.time_ms}-${i}`} className="ss-result">
+                  const body = (
+                    <>
                       <div className="ss-result-main">
                         <div className="ss-result-name">
                           <span>{r.event_name}</span>
@@ -336,7 +340,23 @@ function Profile({
                             ))}
                         </div>
                       </div>
+                    </>
+                  );
+                  const key = `${r.race_id}-${r.time_ms}-${i}`;
+                  // Fully imported races have their own page with the whole field.
+                  return r.full && r.event_id ? (
+                    <li key={key}>
+                      <Link
+                        href={`/lop/${r.event_id}?race=${r.race_id}&utover=${athlete.id}`}
+                        className="ss-result ss-result--link"
+                        title="Se hele resultatlisten"
+                      >
+                        {body}
+                        <ChevronRight size={16} className="ss-result-go" />
+                      </Link>
                     </li>
+                  ) : (
+                    <li key={key} className="ss-result">{body}</li>
                   );
                 })}
               </ul>

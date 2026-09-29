@@ -3916,3 +3916,11 @@ body {
   .adm-topbar { height: auto; padding: 8px 12px; flex-wrap: wrap; gap: 6px; }
   .adm-topbar .adm-tabs { max-width: 100%; overflow-x: auto; }
 }
+
+/* ── Admin: løp suggestions ── */
+.lopadm-pair { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); gap: 16px; align-items: start; }
+.lopadm-side { min-width: 0; }
+.lopadm-name { display: block; padding: 0; border: 0; background: none; font: 700 15px/1.3 inherit; color: var(--fg); cursor: pointer; text-align: left; margin-bottom: 4px; }
+.lopadm-name:hover { text-decoration: underline; }
+.lopadm-vs { font-size: 18px; color: #999; padding-top: 2px; }
+@media (max-width: 700px) { .lopadm-pair { grid-template-columns: minmax(0, 1fr); } .lopadm-vs { display: none; } }

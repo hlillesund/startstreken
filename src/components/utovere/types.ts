@@ -10,6 +10,9 @@ export type DistanceCategory = "5K" | "10K" | "HM" | "M" | "OTHER";
 
 export interface AthleteResultRow {
   race_id:            string;
+  event_id?:          string;
+  /** From a fully imported result list (has a page under /lop). */
+  full?:              boolean;
   race_name:          string;
   event_name:         string;
   start_date:         string | null;

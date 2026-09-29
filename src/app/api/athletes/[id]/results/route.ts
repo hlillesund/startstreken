@@ -28,6 +28,7 @@ export async function GET(
           _count: { select: { results: true } },
           events: {
             select: {
+              id:         true,
               name:       true,
               start_date: true,
               location:   true,
@@ -80,6 +81,8 @@ export async function GET(
     const isFullyImported = !rawJson?.ArrangementUID;
     return {
       race_id:            r.races.id,
+      event_id:           r.races.events.id,
+      full:               isFullyImported,
       race_name:          r.races.name,
       event_name:         r.races.events.name,
       start_date:         r.races.events.start_date?.toISOString().split("T")[0] ?? null,

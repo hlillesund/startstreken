@@ -1,387 +1,700 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { api, DistBadge, fmtNum, Spinner } from "../import/shared";
+import EventDrawer, { type EventDetail } from "./EventDrawer";
+import { toast } from "./toast";
 
 /* ─── Types ──────────────────────────────────────────────────────────────── */
-interface SeriesSummary {
-  id: string;
-  name: string;
+interface Edition { id: string; name: string; date: string | null; location: string | null; finishers: number }
+interface Group {
   slug: string;
+  name: string;
   location: string | null;
-  edition_count: number;
+  seriesId: string | null;
+  first: string | null;
+  last: string | null;
+  finishers: number;
+  cats: string[];
+  editions: Edition[];
 }
-
+interface Suggestion { a: string; b: string; score: number; reasons: string[] }
+interface LopData { groups: Group[]; suggestions: Suggestion[]; redundant: { trivial: number; empty: number } }
 interface EventRow {
   id: string;
   name: string;
   source_event_id: string;
   start_date: string | null;
   location: string | null;
-  series: { id: string; name: string; slug: string } | null;
   race_count: number;
   result_count: number;
   distances: string[];
 }
 
-interface RaceDetail {
-  id: string;
-  name: string;
-  distance_category_override: string | null;
-  inferred_distances: string[];
-  result_count: number;
+const IGNORE_KEY = "admin-lop-ignored";
+const year = (d: string | null) => d?.slice(0, 4) ?? "—";
+const years = (g: Group) => (g.first && g.last ? (year(g.first) === year(g.last) ? year(g.first) : `${year(g.first)}–${year(g.last)}`) : "—");
+
+function readIgnored(): Set<string> {
+  try {
+    return new Set(JSON.parse(localStorage.getItem(IGNORE_KEY) ?? "[]"));
+  } catch {
+    return new Set();
+  }
 }
 
-interface EventDetail {
-  id: string;
-  name: string;
-  source_event_id: string;
-  source_slug: string;
-  start_date: string | null;
-  location: string | null;
-  pretty_url: string | null;
-  series: SeriesSummary | null;
-  races: RaceDetail[];
-}
-
-interface SeriesEdition {
-  id: string;
-  name: string;
-  start_date: string | null;
-  location: string | null;
-  race_count: number;
-  result_count: number;
-  distances: string[];
-}
-
-interface SeriesDetail {
-  id: string;
-  name: string;
-  slug: string;
-  location: string | null;
-  notes: string | null;
-  editions: SeriesEdition[];
-}
-
-const DIST_COLORS: Record<string, string> = {
-  "5K":   "#e0f2fe",
-  "10K":  "#dcfce7",
-  "HM":   "#fef9c3",
-  "M":    "#fee2e2",
-  "OTHER":"#f3f4f6",
-};
-const DIST_TEXT: Record<string, string> = {
-  "5K":   "#0369a1",
-  "10K":  "#166534",
-  "HM":   "#854d0e",
-  "M":    "#991b1b",
-  "OTHER":"#6b7280",
-};
-
-function DistBadge({ dist }: { dist: string }) {
-  const bg   = DIST_COLORS[dist] ?? DIST_COLORS.OTHER;
-  const text = DIST_TEXT[dist]   ?? DIST_TEXT.OTHER;
+function SearchInput({ value, onChange, placeholder, autoFocus }: { value: string; onChange: (v: string) => void; placeholder: string; autoFocus?: boolean }) {
   return (
-    <span style={{
-      display: "inline-block", padding: "1px 7px", borderRadius: 3,
-      fontSize: 10, fontWeight: 700, letterSpacing: "0.1em",
-      textTransform: "uppercase", background: bg, color: text,
-      fontFamily: "var(--font-mono)", marginRight: 4, marginBottom: 2,
-    }}>
-      {dist}
-    </span>
+    <div className="adm-search-wrap">
+      <svg className="adm-search-icon" width="14" height="14" viewBox="0 0 14 14" fill="none">
+        <circle cx="5.5" cy="5.5" r="3.5" stroke="currentColor" strokeWidth="1.5" />
+        <path d="M8.5 8.5l3 3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+      </svg>
+      <input className="adm-search" placeholder={placeholder} value={value} onChange={(e) => onChange(e.target.value)} autoFocus={autoFocus} />
+      {value && <button className="adm-search-clear" onClick={() => onChange("")}>✕</button>}
+    </div>
   );
 }
 
-function toast(msg: string, type: "ok" | "err" = "ok") {
-  const el = document.createElement("div");
-  el.textContent = msg;
-  Object.assign(el.style, {
-    position: "fixed", bottom: "24px", right: "24px", zIndex: 9999,
-    background: type === "ok" ? "#1a1a1a" : "#dc2626",
-    color: "#fff", padding: "10px 18px",
-    fontFamily: "var(--font-mono)", fontSize: "12px",
-    letterSpacing: "0.06em", boxShadow: "0 8px 24px rgba(0,0,0,0.3)",
-    transition: "opacity 0.3s",
-  });
-  document.body.appendChild(el);
-  setTimeout(() => { el.style.opacity = "0"; setTimeout(() => el.remove(), 400); }, 2400);
+function matches(g: Group, q: string) {
+  const words = q.toLowerCase().split(/\s+/).filter(Boolean);
+  const hay = `${g.name} ${g.slug} ${g.location ?? ""} ${g.editions.map((e) => e.name).join(" ")}`.toLowerCase();
+  return words.every((w) => hay.includes(w));
 }
 
-/* ─── Main Component ─────────────────────────────────────────────────────── */
+/* ─── Page ───────────────────────────────────────────────────────────────── */
 export default function AdminLopPage() {
-  // Panel state
-  const [view, setView]                 = useState<"events" | "series">("events");
+  const [view, setView] = useState<"groups" | "suggestions" | "events">("groups");
+  const [data, setData] = useState<LopData | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [openSlug, setOpenSlug] = useState<string | null>(null);
+  const [editEvent, setEditEvent] = useState<EventDetail | null>(null);
+  const [ignored, setIgnored] = useState<Set<string>>(new Set());
 
-  // Events panel
-  const [evQ, setEvQ]                   = useState("");
-  const [evPage, setEvPage]             = useState(1);
-  const [evRows, setEvRows]             = useState<EventRow[]>([]);
-  const [evTotal, setEvTotal]           = useState(0);
-  const [evPages, setEvPages]           = useState(1);
-  const [evLoading, setEvLoading]       = useState(false);
-  const [selected, setSelected]         = useState<Set<string>>(new Set());
-  const [editEvent, setEditEvent]       = useState<EventDetail | null>(null);
-  const [editLoading, setEditLoading]   = useState(false);
-
-  // Series panel
-  const [serQ, setSerQ]                 = useState("");
-  const [serRows, setSerRows]           = useState<SeriesSummary[]>([]);
-  const [serLoading, setSerLoading]     = useState(false);
-  const [editSeries, setEditSeries]     = useState<SeriesDetail | null>(null);
-  const [serDetailLoading, setSerDetailLoading] = useState(false);
-  const [newSeriesName, setNewSeriesName] = useState("");
-  const [showNewSeries, setShowNewSeries] = useState(false);
-
-  // Assign-series modal
-  const [showAssign, setShowAssign]     = useState(false);
-  const [assignSeries, setAssignSeries] = useState<SeriesSummary | null>(null);
-  const [assignQ, setAssignQ]           = useState("");
-  const [assignResults, setAssignResults] = useState<SeriesSummary[]>([]);
-
-  const evDebounce = useRef<NodeJS.Timeout | undefined>(undefined);
-  const serDebounce = useRef<NodeJS.Timeout | undefined>(undefined);
-  const assignDebounce = useRef<NodeJS.Timeout | undefined>(undefined);
-
-  /* ── Fetch events ── */
-  const loadEvents = useCallback((q: string, page: number) => {
-    setEvLoading(true);
-    fetch(`/api/admin/events?q=${encodeURIComponent(q)}&page=${page}`)
-      .then((r) => r.json())
-      .then((d) => { setEvRows(d.events ?? []); setEvTotal(d.total ?? 0); setEvPages(d.pages ?? 1); })
-      .finally(() => setEvLoading(false));
+  const load = useCallback(async () => {
+    try {
+      const d = await api<LopData & { ok: boolean }>("/api/admin/lop");
+      setData(d);
+    } catch (e) {
+      toast(e instanceof Error ? e.message : "Kunne ikke laste", "err");
+    }
   }, []);
 
   useEffect(() => {
-    clearTimeout(evDebounce.current);
-    evDebounce.current = setTimeout(() => loadEvents(evQ, evPage), 280);
-  }, [evQ, evPage, loadEvents]);
+    load();
+    setIgnored(readIgnored());
+  }, [load]);
 
-  /* ── Fetch series list ── */
-  const loadSeries = useCallback((q: string) => {
-    setSerLoading(true);
-    fetch(`/api/admin/series?q=${encodeURIComponent(q)}`)
-      .then((r) => r.json())
-      .then((d) => setSerRows(Array.isArray(d) ? d : []))
-      .finally(() => setSerLoading(false));
-  }, []);
+  const bySlug = useMemo(() => new Map((data?.groups ?? []).map((g) => [g.slug, g])), [data]);
+  const groupOfEvent = useMemo(() => {
+    const m = new Map<string, Group>();
+    for (const g of data?.groups ?? []) for (const e of g.editions) m.set(e.id, g);
+    return m;
+  }, [data]);
 
-  useEffect(() => {
-    clearTimeout(serDebounce.current);
-    serDebounce.current = setTimeout(() => loadSeries(serQ), 280);
-  }, [serQ, loadSeries]);
+  /** Runs a grouping action, then reloads. Returns false on error. */
+  const act = useCallback(
+    async (payload: Record<string, unknown>, done: string) => {
+      setBusy(true);
+      try {
+        const res = await api<{ ok: boolean; error?: string; removed?: number }>("/api/admin/lop", { method: "POST", json: payload });
+        if (!res.ok) throw new Error(res.error ?? "Feil");
+        toast(res.removed != null ? `${done} (${res.removed})` : done);
+        await load();
+        return true;
+      } catch (e) {
+        toast(e instanceof Error ? e.message : "Feil", "err");
+        return false;
+      } finally {
+        setBusy(false);
+      }
+    },
+    [load]
+  );
 
-  /* ── Assign search ── */
-  useEffect(() => {
-    if (!showAssign) return;
-    clearTimeout(assignDebounce.current);
-    assignDebounce.current = setTimeout(() => {
-      fetch(`/api/admin/series?q=${encodeURIComponent(assignQ)}`)
-        .then((r) => r.json())
-        .then((d) => setAssignResults(Array.isArray(d) ? d : []));
-    }, 240);
-  }, [assignQ, showAssign]);
-
-  /* ── Open event detail ── */
   async function openEvent(id: string) {
-    setEditLoading(true);
-    const d = await fetch(`/api/admin/events/${id}`).then((r) => r.json());
-    setEditLoading(false);
-    if (d.ok) setEditEvent(d.event);
+    const d = await api<{ ok: boolean; event: EventDetail }>(`/api/admin/events/${id}`).catch(() => null);
+    if (d?.ok) setEditEvent(d.event);
     else toast("Kunne ikke laste event", "err");
   }
 
-  /* ── Save event ── */
-  async function saveEvent(ev: EventDetail, patch: Partial<EventDetail>) {
-    const res = await fetch(`/api/admin/events/${ev.id}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(patch),
-    }).then((r) => r.json());
-    if (res.ok) {
+  async function saveEvent(ev: EventDetail, patch: object) {
+    const res = await api<{ ok: boolean }>(`/api/admin/events/${ev.id}`, { method: "PATCH", json: patch }).catch(() => null);
+    if (res?.ok) {
       toast("Lagret ✓");
       setEditEvent(null);
-      loadEvents(evQ, evPage);
+      load();
     } else toast("Feil ved lagring", "err");
   }
 
-  /* ── Save race override ── */
   async function saveRace(raceId: string, patch: object) {
-    const res = await fetch(`/api/admin/races/${raceId}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(patch),
-    }).then((r) => r.json());
-    if (res.ok) toast("Race lagret ✓");
+    const res = await api<{ ok: boolean }>(`/api/admin/races/${raceId}`, { method: "PATCH", json: patch }).catch(() => null);
+    if (res?.ok) toast("Løp lagret ✓");
     else toast("Feil", "err");
   }
 
-  /* ── Assign selected events to a series ── */
-  async function assignToSeries(seriesId: string | null) {
-    const ids = [...selected];
-    await Promise.all(
-      ids.map((id) =>
-        fetch(`/api/admin/events/${id}`, {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ series_id: seriesId }),
-        })
-      )
-    );
-    toast(`${ids.length} event${ids.length !== 1 ? "s" : ""} oppdatert ✓`);
-    setSelected(new Set());
-    setShowAssign(false);
-    setAssignSeries(null);
-    loadEvents(evQ, evPage);
+  function ignore(s: Suggestion) {
+    const next = new Set(ignored).add(`${s.a}|${s.b}`);
+    setIgnored(next);
+    try {
+      localStorage.setItem(IGNORE_KEY, JSON.stringify([...next]));
+    } catch {
+      // private mode — ignored for this visit only
+    }
   }
 
-  /* ── Open series detail ── */
-  async function openSeries(id: string) {
-    setSerDetailLoading(true);
-    const d = await fetch(`/api/admin/series/${id}`).then((r) => r.json());
-    setSerDetailLoading(false);
-    if (d.ok) setEditSeries(d.series);
-    else toast("Kunne ikke laste serie", "err");
+  const openSuggestions = (data?.suggestions ?? []).filter((s) => !ignored.has(`${s.a}|${s.b}`) && bySlug.has(s.a) && bySlug.has(s.b));
+  const openGroup = openSlug ? bySlug.get(openSlug) ?? null : null;
+
+  async function logout() {
+    await fetch("/api/admin/logout", { method: "POST" });
+    window.location.href = "/admin/login";
   }
-
-  /* ── Create new series ── */
- async function createSeries() {
-  if (!newSeriesName.trim()) return;
-
-  const res = await fetch("/api/admin/series", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ name: newSeriesName.trim() }),
-  });
-
-  const data = await res.json().catch(() => null);
-
-  if (!res.ok || !data?.ok) {
-    console.error("Create series failed:", data);
-    toast(data?.error ?? "Feil ved opprettelse", "err");
-    return;
-  }
-
-  toast("Serie opprettet ✓");
-  setNewSeriesName("");
-  setShowNewSeries(false);
-  loadSeries(serQ);
-}
-
-  /* ── Delete series ── */
-  async function deleteSeries(id: string) {
-    if (!confirm("Slett serie? Events kobles fra, men slettes ikke.")) return;
-    const res = await fetch(`/api/admin/series/${id}`, { method: "DELETE" }).then((r) => r.json());
-    if (res.ok) { toast("Serie slettet"); setEditSeries(null); loadSeries(serQ); }
-    else toast("Feil ved sletting", "err");
-  }
-
-  const allSelected = evRows.length > 0 && evRows.every((r) => selected.has(r.id));
 
   return (
     <div className="adm-root">
-      {/* ── TOPBAR ── */}
       <div className="adm-topbar">
         <div className="adm-topbar-left">
           <span className="adm-logo">Admin</span>
           <span className="adm-logo-sep">/</span>
-          <span className="adm-logo-page">Løp &amp; Serier</span>
+          <span className="adm-logo-page">Løp</span>
+          <a className="adm-logo-page imp-toplink" href="/admin/import">Import →</a>
+          {busy && <span className="imp-meta" style={{ marginLeft: 14 }}><Spinner /> Oppdaterer…</span>}
         </div>
         <div className="adm-tabs">
-          <button
-            className={`adm-tab${view === "events" ? " act" : ""}`}
-            onClick={() => setView("events")}
-          >
-            Events
-            {evTotal > 0 && <span className="adm-tab-count">{evTotal}</span>}
+          <button className={`adm-tab${view === "groups" ? " act" : ""}`} onClick={() => setView("groups")}>
+            Løp {data && <span className="adm-tab-count">{data.groups.length}</span>}
           </button>
-          <button
-            className={`adm-tab${view === "series" ? " act" : ""}`}
-            onClick={() => setView("series")}
-          >
-            Serier
-            {serRows.length > 0 && <span className="adm-tab-count">{serRows.length}</span>}
+          <button className={`adm-tab${view === "suggestions" ? " act" : ""}`} onClick={() => setView("suggestions")}>
+            Forslag {openSuggestions.length > 0 && <span className="adm-tab-count">{openSuggestions.length}</span>}
           </button>
+          <button className={`adm-tab${view === "events" ? " act" : ""}`} onClick={() => setView("events")}>Events</button>
+          <button className="adm-tab" onClick={logout} title="Logg ut">⎋</button>
         </div>
       </div>
 
-      {/* ════════════════════════════════════
-          EVENTS VIEW
-      ════════════════════════════════════ */}
-      {view === "events" && (
-        <div className="adm-body">
-          {/* search + bulk actions */}
-          <div className="adm-toolbar">
-            <div className="adm-search-wrap">
-              <svg className="adm-search-icon" width="14" height="14" viewBox="0 0 14 14" fill="none">
-                <circle cx="5.5" cy="5.5" r="3.5" stroke="currentColor" strokeWidth="1.5"/>
-                <path d="M8.5 8.5l3 3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
-              </svg>
-              <input
-                className="adm-search"
-                placeholder="Søk på navn, ID eller by…"
-                value={evQ}
-                onChange={(e) => { setEvQ(e.target.value); setEvPage(1); }}
-              />
-              {evQ && <button className="adm-search-clear" onClick={() => { setEvQ(""); setEvPage(1); }}>✕</button>}
-            </div>
+      <div className="imp-body">
+        {!data ? (
+          <div className="adm-loading" style={{ padding: 40 }}><Spinner /> Laster løp…</div>
+        ) : view === "groups" ? (
+          <GroupsTab data={data} busy={busy} act={act} onOpen={setOpenSlug} />
+        ) : view === "suggestions" ? (
+          <SuggestionsTab
+            suggestions={openSuggestions}
+            hidden={(data.suggestions.length - openSuggestions.length)}
+            bySlug={bySlug}
+            busy={busy}
+            act={act}
+            onIgnore={ignore}
+            onShowIgnored={() => {
+              setIgnored(new Set());
+              try { localStorage.removeItem(IGNORE_KEY); } catch {}
+            }}
+            onOpen={setOpenSlug}
+          />
+        ) : (
+          <EventsTab groups={data.groups} groupOfEvent={groupOfEvent} busy={busy} act={act} onOpenEvent={openEvent} onOpenGroup={setOpenSlug} />
+        )}
+      </div>
 
-            {selected.size > 0 && (
-              <div className="adm-bulk">
-                <span className="adm-bulk-count">{selected.size} valgt</span>
-                <button className="adm-btn adm-btn--primary" onClick={() => setShowAssign(true)}>
-                  Koble til serie
+      {openGroup && (
+        <GroupDrawer
+          key={openGroup.slug}
+          group={openGroup}
+          groups={data?.groups ?? []}
+          groupOfEvent={groupOfEvent}
+          busy={busy}
+          act={act}
+          onClose={() => setOpenSlug(null)}
+          onOpenEvent={openEvent}
+        />
+      )}
+
+      {editEvent && (
+        <EventDrawer
+          event={editEvent}
+          group={groupOfEvent.get(editEvent.id) ?? null}
+          onClose={() => setEditEvent(null)}
+          onSave={(patch) => saveEvent(editEvent, patch)}
+          onSaveRace={saveRace}
+          onOpenGroup={(slug) => { setEditEvent(null); setOpenSlug(slug); }}
+        />
+      )}
+    </div>
+  );
+}
+
+type Act = (payload: Record<string, unknown>, done: string) => Promise<boolean>;
+
+/* ─── Løp (groups) ───────────────────────────────────────────────────────── */
+function GroupsTab({ data, busy, act, onOpen }: { data: LopData; busy: boolean; act: Act; onOpen: (slug: string) => void }) {
+  const [q, setQ] = useState("");
+  const [filter, setFilter] = useState<"all" | "manual" | "multi" | "single">("all");
+  const [selected, setSelected] = useState<string[]>([]);
+  const sig = `${q}|${filter}`;
+  const [more, setMore] = useState({ sig, n: 100 });
+  const shown = more.sig === sig ? more.n : 100;
+  const [mergeName, setMergeName] = useState<string | null>(null);
+
+  const rows = useMemo(
+    () =>
+      data.groups
+        .filter((g) =>
+          filter === "manual" ? g.seriesId : filter === "multi" ? g.editions.length > 1 : filter === "single" ? g.editions.length === 1 : true
+        )
+        .filter((g) => !q || matches(g, q))
+        .sort((a, b) => (b.last ?? "").localeCompare(a.last ?? "")),
+    [data, q, filter]
+  );
+
+  const redundant = data.redundant.trivial + data.redundant.empty;
+  const toggle = (slug: string) => setSelected((s) => (s.includes(slug) ? s.filter((x) => x !== slug) : [...s, slug]));
+  const selGroups = selected.map((s) => data.groups.find((g) => g.slug === s)).filter(Boolean) as Group[];
+
+  return (
+    <div className="imp-panel">
+      <div className="imp-card">
+        <h2 className="imp-h2">Hvordan løp grupperes</h2>
+        <p className="imp-help" style={{ marginBottom: 0 }}>
+          Utgaver av samme løp samles automatisk når navnet er likt uten årstall og dato («Ulriken Opp 2024» og «Ulriken Opp 2026»).
+          Når navnene er forskjellige («Fjordkraft Bergen City Marathon» / «Bergen City Marathon») slår du dem sammen her eller under
+          <b> Forslag</b>. En manuell gruppering fanger også opp nye utgaver med samme navn som en av utgavene den allerede har.
+          Kun fullstendig importerte events vises.
+        </p>
+        {redundant > 0 && (
+          <div className="imp-overrides" style={{ marginTop: 14, display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
+            <span className="imp-meta" style={{ flex: 1 }}>
+              {fmtNum(data.redundant.trivial)} serier inneholder bare ett event med samme navn, og {fmtNum(data.redundant.empty)} er tomme.
+              De gjør ingenting og kan fjernes.
+            </span>
+            <button
+              className="adm-btn adm-btn--ghost"
+              disabled={busy}
+              onClick={() => confirm(`Fjerne ${redundant} overflødige serier? Eventene beholdes.`) && act({ action: "cleanup" }, "Ryddet")}
+            >
+              Rydd opp
+            </button>
+          </div>
+        )}
+      </div>
+
+      <div className="imp-card imp-card--flush">
+        <div className="adm-toolbar">
+          <SearchInput value={q} onChange={setQ} placeholder="Søk på løp, utgave eller sted…" />
+          <select className="adm-select" style={{ width: "auto", flex: "0 0 auto" }} value={filter} onChange={(e) => setFilter(e.target.value as typeof filter)}>
+            <option value="all">Alle</option>
+            <option value="manual">Manuelt gruppert</option>
+            <option value="multi">Flere utgaver</option>
+            <option value="single">Én utgave</option>
+          </select>
+          <span className="imp-meta">{fmtNum(rows.length)} løp</span>
+          {selected.length > 0 && (
+            <div className="adm-bulk">
+              <span className="adm-bulk-count">{selected.length} valgt</span>
+              <button className="adm-btn adm-btn--primary" disabled={selected.length < 2 || busy} onClick={() => setMergeName(selGroups[0]?.name ?? "")}>
+                Slå sammen
+              </button>
+              <button className="adm-btn adm-btn--ghost" onClick={() => setSelected([])}>Avbryt</button>
+            </div>
+          )}
+        </div>
+        <div className="adm-table-wrap">
+          <table className="adm-table">
+            <thead>
+              <tr>
+                <th style={{ width: 36 }} />
+                <th>Løp</th>
+                <th>Utgaver</th>
+                <th>Sted</th>
+                <th>Distanser</th>
+                <th>Fullførte</th>
+                <th>Gruppering</th>
+                <th />
+              </tr>
+            </thead>
+            <tbody>
+              {rows.length === 0 && <tr><td colSpan={8} className="adm-empty">Ingen løp</td></tr>}
+              {rows.slice(0, shown).map((g) => (
+                <tr key={g.slug} className={`adm-tr${selected.includes(g.slug) ? " sel" : ""}`}>
+                  <td><input type="checkbox" checked={selected.includes(g.slug)} onChange={() => toggle(g.slug)} /></td>
+                  <td className="adm-td-name">
+                    <span className="adm-name">{g.name}</span>
+                    <span className="adm-source-id">/lop/{g.slug}</span>
+                  </td>
+                  <td className="adm-td-mono">{g.editions.length} · {years(g)}</td>
+                  <td className="adm-td-mono">{g.location ?? "—"}</td>
+                  <td>{g.cats.map((c) => <DistBadge key={c} dist={c} />)}</td>
+                  <td className="adm-td-num">{fmtNum(g.finishers)}</td>
+                  <td>{g.seriesId ? <span className="adm-series-tag">Manuell</span> : <span className="imp-meta">Navn</span>}</td>
+                  <td><button className="adm-row-btn" onClick={() => onOpen(g.slug)}>Åpne →</button></td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+        {rows.length > shown && (
+          <div className="adm-pagination">
+            <button className="adm-page-btn" onClick={() => setMore({ sig, n: shown + 100 })}>Vis flere ({fmtNum(rows.length - shown)})</button>
+          </div>
+        )}
+      </div>
+
+      {mergeName !== null && (
+        <div className="adm-modal-backdrop" onClick={() => setMergeName(null)}>
+          <div className="adm-modal" style={{ maxWidth: 480 }} onClick={(e) => e.stopPropagation()}>
+            <div className="adm-modal-head">
+              <span>Slå sammen {selGroups.length} løp</span>
+              <button className="adm-modal-close" onClick={() => setMergeName(null)}>✕</button>
+            </div>
+            <div className="adm-modal-body">
+              <div className="imp-meta" style={{ marginBottom: 12, lineHeight: 1.7 }}>
+                {selGroups.map((g) => <div key={g.slug}>• {g.name} ({g.editions.length} utg., {years(g)})</div>)}
+              </div>
+              <label className="adm-label">Navn på løpet</label>
+              <input className="adm-input" value={mergeName} onChange={(e) => setMergeName(e.target.value)} autoFocus />
+            </div>
+            <div className="adm-modal-foot">
+              <button
+                className="adm-btn adm-btn--primary"
+                disabled={busy || !mergeName.trim()}
+                onClick={async () => {
+                  if (await act({ action: "merge", slugs: selected, name: mergeName.trim() }, "Slått sammen ✓")) {
+                    setSelected([]);
+                    setMergeName(null);
+                  }
+                }}
+              >
+                Slå sammen
+              </button>
+              <button className="adm-btn adm-btn--ghost" onClick={() => setMergeName(null)}>Avbryt</button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ─── Forslag ────────────────────────────────────────────────────────────── */
+function SuggestionsTab({
+  suggestions, hidden, bySlug, busy, act, onIgnore, onShowIgnored, onOpen,
+}: {
+  suggestions: Suggestion[];
+  hidden: number;
+  bySlug: Map<string, Group>;
+  busy: boolean;
+  act: Act;
+  onIgnore: (s: Suggestion) => void;
+  onShowIgnored: () => void;
+  onOpen: (slug: string) => void;
+}) {
+  const Side = ({ g }: { g: Group }) => (
+    <div className="lopadm-side">
+      <button className="lopadm-name" onClick={() => onOpen(g.slug)}>{g.name}</button>
+      <div className="imp-meta">
+        {g.editions.length} utg. · {years(g)}{g.location ? ` · ${g.location}` : ""} · {fmtNum(g.finishers)} fullførte
+      </div>
+      <div style={{ marginTop: 4 }}>{g.cats.map((c) => <DistBadge key={c} dist={c} />)}</div>
+    </div>
+  );
+
+  return (
+    <div className="imp-panel">
+      <div className="imp-card">
+        <h2 className="imp-h2">Mulige samme løp</h2>
+        <p className="imp-help" style={{ marginBottom: 0 }}>
+          Løp med lignende navn, gjerne på samme sted og tid på året, som aldri er arrangert samme år. Slå sammen for å få statistikk på tvers
+          av årene, eller ignorer forslaget.
+          {hidden > 0 && (
+            <> {hidden} ignorert — <button className="imp-disclosure" onClick={onShowIgnored}>vis igjen</button></>
+          )}
+        </p>
+      </div>
+      {suggestions.length === 0 && <div className="imp-card adm-empty">Ingen forslag akkurat nå.</div>}
+      {suggestions.map((s) => {
+        const A = bySlug.get(s.a)!, B = bySlug.get(s.b)!;
+        return (
+          <div key={`${s.a}|${s.b}`} className="imp-card lopadm-sugg">
+            <div className="lopadm-pair">
+              <Side g={A} />
+              <span className="lopadm-vs">⇄</span>
+              <Side g={B} />
+            </div>
+            <div className="imp-meta" style={{ marginTop: 10 }}>{s.reasons.join(" · ")}</div>
+            <div className="imp-actions" style={{ marginTop: 12 }}>
+              {[A, B].map((keep) => (
+                <button
+                  key={keep.slug}
+                  className="adm-btn adm-btn--primary"
+                  disabled={busy}
+                  onClick={() => act({ action: "merge", slugs: [keep.slug, keep === A ? B.slug : A.slug], name: keep.name }, "Slått sammen ✓")}
+                >
+                  Slå sammen som «{keep.name}»
                 </button>
-                <button className="adm-btn adm-btn--ghost" onClick={() => assignToSeries(null)}>
-                  Fjern serie
-                </button>
-                <button className="adm-btn adm-btn--ghost" onClick={() => setSelected(new Set())}>
-                  Avbryt
-                </button>
+              ))}
+              <button className="adm-btn adm-btn--ghost" onClick={() => onIgnore(s)}>Ignorer</button>
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+/* ─── Group drawer ───────────────────────────────────────────────────────── */
+function GroupDrawer({
+  group, groups, groupOfEvent, busy, act, onClose, onOpenEvent,
+}: {
+  group: Group;
+  groups: Group[];
+  groupOfEvent: Map<string, Group>;
+  busy: boolean;
+  act: Act;
+  onClose: () => void;
+  onOpenEvent: (id: string) => void;
+}) {
+  const [name, setName] = useState(group.name);
+  const [mergeQ, setMergeQ] = useState("");
+  const [addQ, setAddQ] = useState("");
+  const [addRows, setAddRows] = useState<EventRow[] | null>(null);
+  const debounce = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+
+  useEffect(() => {
+    clearTimeout(debounce.current);
+    if (addQ.trim().length < 2) return;
+    debounce.current = setTimeout(() => {
+      api<{ events: EventRow[] }>(`/api/admin/events?q=${encodeURIComponent(addQ.trim())}`)
+        .then((d) => setAddRows(d.events ?? []))
+        .catch(() => setAddRows([]));
+    }, 280);
+  }, [addQ]);
+
+  const mergeHits = mergeQ.trim().length >= 2 ? groups.filter((g) => g.slug !== group.slug && matches(g, mergeQ)).slice(0, 8) : [];
+  const own = new Set(group.editions.map((e) => e.id));
+
+  async function split(ed: Edition) {
+    const suggestion = [ed.name.replace(/\b(19|20)\d{2}\b/g, "").replace(/\s+/g, " ").trim(), ed.location].filter(Boolean).join(" ");
+    const n = prompt(`Flytt «${ed.name}» ut til et eget løp. Navn på det nye løpet:`, suggestion);
+    if (n?.trim()) await act({ action: "split", eventId: ed.id, name: n.trim() }, "Flyttet ut ✓");
+  }
+
+  return (
+    <div className="adm-drawer-backdrop" onClick={onClose}>
+      <div className="adm-drawer" onClick={(e) => e.stopPropagation()}>
+        <div className="adm-drawer-head">
+          <span className="adm-drawer-title">Løp: {group.name}</span>
+          <button className="adm-modal-close" onClick={onClose}>✕</button>
+        </div>
+
+        <div className="adm-drawer-body">
+          <div className="adm-field">
+            <label className="adm-label">Navn</label>
+            <div style={{ display: "flex", gap: 8 }}>
+              <input className="adm-input" value={name} onChange={(e) => setName(e.target.value)} />
+              <button
+                className="adm-btn adm-btn--primary"
+                disabled={busy || !name.trim() || name.trim() === group.name}
+                onClick={() => act({ action: "rename", slug: group.slug, name: name.trim() }, "Navn lagret ✓")}
+              >
+                Lagre
+              </button>
+            </div>
+            <div className="adm-field-hint imp-meta" style={{ marginTop: 6 }}>
+              <a className="adm-link" href={`/lop/${group.slug}`} target="_blank" rel="noreferrer">/lop/{group.slug} ↗</a>
+              {" · "}
+              {group.seriesId ? "Manuelt gruppert" : "Gruppert automatisk etter navn"}
+            </div>
+          </div>
+
+          <div className="adm-field">
+            <label className="adm-label">Utgaver ({group.editions.length})</label>
+            <div className="adm-editions">
+              {group.editions.map((ed) => (
+                <div key={ed.id} className="adm-edition-row">
+                  <div className="adm-edition-year">{year(ed.date)}</div>
+                  <div className="adm-edition-info">
+                    <span className="adm-edition-name">{ed.name}</span>
+                    <span className="adm-edition-meta">{[ed.date, ed.location, `${fmtNum(ed.finishers)} fullførte`].filter(Boolean).join(" · ")}</span>
+                  </div>
+                  <div className="adm-edition-right">
+                    <button className="adm-row-btn" onClick={() => onOpenEvent(ed.id)}>Rediger</button>
+                    {group.editions.length > 1 && (
+                      <button className="adm-row-btn" disabled={busy} onClick={() => split(ed)}>Flytt ut</button>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div className="adm-field">
+            <label className="adm-label">Slå sammen med et annet løp</label>
+            <SearchInput value={mergeQ} onChange={setMergeQ} placeholder="Søk etter løp…" />
+            {mergeHits.length > 0 && (
+              <div className="adm-assign-list" style={{ marginTop: 8 }}>
+                {mergeHits.map((g) => (
+                  <div key={g.slug} className="adm-assign-row" style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div className="adm-assign-name">{g.name}</div>
+                      <div className="adm-assign-meta">{g.editions.length} utg. · {years(g)}{g.location ? ` · ${g.location}` : ""}</div>
+                    </div>
+                    <button
+                      className="adm-btn adm-btn--primary"
+                      disabled={busy}
+                      onClick={async () => {
+                        if (await act({ action: "merge", slugs: [group.slug, g.slug], name: group.name }, "Slått sammen ✓")) setMergeQ("");
+                      }}
+                    >
+                      Slå sammen
+                    </button>
+                  </div>
+                ))}
               </div>
             )}
           </div>
 
-          {/* table */}
-          <div className="adm-table-wrap">
-            <table className="adm-table">
-              <thead>
-                <tr>
-                  <th style={{ width: 36 }}>
-                    <input
-                      type="checkbox"
-                      checked={allSelected}
-                      onChange={() => setSelected(allSelected ? new Set() : new Set(evRows.map((r) => r.id)))}
-                    />
-                  </th>
-                  <th>Navn</th>
-                  <th>Dato</th>
-                  <th>By</th>
-                  <th>Distanser</th>
-                  <th>Løp</th>
-                  <th>Resultater</th>
-                  <th>Serie</th>
-                  <th />
-                </tr>
-              </thead>
-              <tbody>
-                {evLoading && (
-                  <tr><td colSpan={9} className="adm-loading">Laster…</td></tr>
-                )}
-                {!evLoading && evRows.length === 0 && (
-                  <tr><td colSpan={9} className="adm-empty">Ingen events funnet</td></tr>
-                )}
-                {!evLoading && evRows.map((ev) => (
-                  <tr
-                    key={ev.id}
-                    className={`adm-tr${selected.has(ev.id) ? " sel" : ""}`}
-                  >
+          <div className="adm-field">
+            <label className="adm-label">Legg til events</label>
+            <p className="imp-help" style={{ margin: "0 0 8px" }}>Også events som ikke er ferdig importert — de dukker opp her når resultatene er på plass.</p>
+            <SearchInput value={addQ} onChange={setAddQ} placeholder="Søk på eventnavn, ID eller sted…" />
+            {addRows && addQ.trim().length >= 2 && (
+              <div className="adm-assign-list" style={{ marginTop: 8 }}>
+                {addRows.length === 0 && <div className="adm-empty" style={{ padding: 12 }}>Ingen treff</div>}
+                {addRows.map((ev) => {
+                  const other = groupOfEvent.get(ev.id);
+                  return (
+                    <div key={ev.id} className="adm-assign-row" style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div className="adm-assign-name">{ev.name}</div>
+                        <div className="adm-assign-meta">
+                          {[ev.start_date, ev.location, `${fmtNum(ev.result_count)} res.`, other && other.slug !== group.slug ? `i «${other.name}»` : null]
+                            .filter(Boolean)
+                            .join(" · ")}
+                        </div>
+                      </div>
+                      {own.has(ev.id) ? (
+                        <span className="imp-meta">Med</span>
+                      ) : (
+                        <button
+                          className="adm-btn adm-btn--ghost"
+                          disabled={busy}
+                          onClick={() => act({ action: "add", slug: group.slug, eventIds: [ev.id] }, "Lagt til ✓")}
+                        >
+                          Legg til
+                        </button>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        </div>
+
+        <div className="adm-drawer-foot">
+          <button className="adm-btn adm-btn--ghost" onClick={onClose}>Lukk</button>
+          {group.seriesId && (
+            <button
+              className="adm-btn adm-btn--danger"
+              style={{ marginLeft: "auto" }}
+              disabled={busy}
+              onClick={async () => {
+                if (!confirm("Oppløse den manuelle grupperingen? Utgavene grupperes deretter kun etter navn.")) return;
+                if (await act({ action: "dissolve", slug: group.slug }, "Oppløst")) onClose();
+              }}
+            >
+              Oppløs gruppering
+            </button>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ─── Events ─────────────────────────────────────────────────────────────── */
+function EventsTab({
+  groups, groupOfEvent, busy, act, onOpenEvent, onOpenGroup,
+}: {
+  groups: Group[];
+  groupOfEvent: Map<string, Group>;
+  busy: boolean;
+  act: Act;
+  onOpenEvent: (id: string) => void;
+  onOpenGroup: (slug: string) => void;
+}) {
+  const [q, setQ] = useState("");
+  const [page, setPage] = useState(1);
+  const [rows, setRows] = useState<EventRow[]>([]);
+  const [total, setTotal] = useState(0);
+  const [pages, setPages] = useState(1);
+  const [loading, setLoading] = useState(false);
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [assign, setAssign] = useState(false);
+  const [assignQ, setAssignQ] = useState("");
+  const debounce = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+
+  const loadEvents = useCallback((query: string, p: number) => {
+    setLoading(true);
+    api<{ events: EventRow[]; total: number; pages: number }>(`/api/admin/events?q=${encodeURIComponent(query)}&page=${p}`)
+      .then((d) => { setRows(d.events ?? []); setTotal(d.total ?? 0); setPages(d.pages ?? 1); })
+      .catch(() => toast("Kunne ikke laste events", "err"))
+      .finally(() => setLoading(false));
+  }, []);
+
+  useEffect(() => {
+    clearTimeout(debounce.current);
+    debounce.current = setTimeout(() => loadEvents(q, page), 280);
+  }, [q, page, loadEvents]);
+
+  const allSelected = rows.length > 0 && rows.every((r) => selected.has(r.id));
+  const hits = assignQ.trim().length >= 2 ? groups.filter((g) => matches(g, assignQ)).slice(0, 10) : [];
+
+  return (
+    <div className="imp-panel">
+      <div className="imp-card imp-card--flush">
+        <div className="adm-toolbar">
+          <SearchInput value={q} onChange={(v) => { setQ(v); setPage(1); }} placeholder="Søk på navn, ID eller by…" />
+          <span className="imp-meta">{fmtNum(total)} events</span>
+          {selected.size > 0 && (
+            <div className="adm-bulk">
+              <span className="adm-bulk-count">{selected.size} valgt</span>
+              <button className="adm-btn adm-btn--primary" onClick={() => setAssign(true)}>Legg i løp…</button>
+              <button className="adm-btn adm-btn--ghost" onClick={() => setSelected(new Set())}>Avbryt</button>
+            </div>
+          )}
+        </div>
+        <div className="adm-table-wrap">
+          <table className="adm-table">
+            <thead>
+              <tr>
+                <th style={{ width: 36 }}>
+                  <input type="checkbox" checked={allSelected} onChange={() => setSelected(allSelected ? new Set() : new Set(rows.map((r) => r.id)))} />
+                </th>
+                <th>Navn</th>
+                <th>Dato</th>
+                <th>By</th>
+                <th>Distanser</th>
+                <th>Resultater</th>
+                <th>Løp</th>
+                <th />
+              </tr>
+            </thead>
+            <tbody>
+              {loading && <tr><td colSpan={8} className="adm-loading">Laster…</td></tr>}
+              {!loading && rows.length === 0 && <tr><td colSpan={8} className="adm-empty">Ingen events funnet</td></tr>}
+              {!loading && rows.map((ev) => {
+                const g = groupOfEvent.get(ev.id);
+                return (
+                  <tr key={ev.id} className={`adm-tr${selected.has(ev.id) ? " sel" : ""}`}>
                     <td>
                       <input
                         type="checkbox"
                         checked={selected.has(ev.id)}
                         onChange={() => {
                           const s = new Set(selected);
-                          s.has(ev.id) ? s.delete(ev.id) : s.add(ev.id);
+                          if (s.has(ev.id)) s.delete(ev.id);
+                          else s.add(ev.id);
                           setSelected(s);
                         }}
                       />
@@ -392,581 +705,64 @@ export default function AdminLopPage() {
                     </td>
                     <td className="adm-td-mono">{ev.start_date ?? "—"}</td>
                     <td className="adm-td-mono">{ev.location ?? "—"}</td>
+                    <td>{ev.distances.length === 0 ? <span className="adm-warn">Ingen</span> : ev.distances.map((d) => <DistBadge key={d} dist={d} />)}</td>
+                    <td className="adm-td-num">{fmtNum(ev.result_count)}</td>
                     <td>
-                      {ev.distances.length === 0
-                        ? <span className="adm-warn">Ingen</span>
-                        : ev.distances.map((d) => <DistBadge key={d} dist={d} />)
-                      }
+                      {g ? (
+                        <span className="adm-series-tag" onClick={() => onOpenGroup(g.slug)}>{g.name}</span>
+                      ) : (
+                        <span className="imp-meta" title="Vises ikke under /lop før resultatene er fullstendig importert">Ikke importert</span>
+                      )}
                     </td>
-                    <td className="adm-td-num">{ev.race_count}</td>
-                    <td className="adm-td-num">{ev.result_count.toLocaleString("nb-NO")}</td>
-                    <td>
-                      {ev.series
-                        ? <span className="adm-series-tag" onClick={() => openSeries(ev.series!.id)}>{ev.series.name}</span>
-                        : <span className="adm-warn">Ingen serie</span>
-                      }
-                    </td>
-                    <td>
-                      <button className="adm-row-btn" onClick={() => openEvent(ev.id)}>
-                        Rediger →
-                      </button>
-                    </td>
+                    <td><button className="adm-row-btn" onClick={() => onOpenEvent(ev.id)}>Rediger →</button></td>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-
-          {/* pagination */}
-          {evPages > 1 && (
-            <div className="adm-pagination">
-              <button className="adm-page-btn" disabled={evPage === 1} onClick={() => setEvPage(evPage - 1)}>← Forrige</button>
-              <span className="adm-page-info">Side {evPage} av {evPages} · {evTotal} totalt</span>
-              <button className="adm-page-btn" disabled={evPage === evPages} onClick={() => setEvPage(evPage + 1)}>Neste →</button>
-            </div>
-          )}
+                );
+              })}
+            </tbody>
+          </table>
         </div>
-      )}
-
-      {/* ════════════════════════════════════
-          SERIES VIEW
-      ════════════════════════════════════ */}
-      {view === "series" && (
-        <div className="adm-body">
-          <div className="adm-toolbar">
-            <div className="adm-search-wrap">
-              <svg className="adm-search-icon" width="14" height="14" viewBox="0 0 14 14" fill="none">
-                <circle cx="5.5" cy="5.5" r="3.5" stroke="currentColor" strokeWidth="1.5"/>
-                <path d="M8.5 8.5l3 3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
-              </svg>
-              <input
-                className="adm-search"
-                placeholder="Søk serienavn…"
-                value={serQ}
-                onChange={(e) => setSerQ(e.target.value)}
-              />
-            </div>
-            <button className="adm-btn adm-btn--primary" onClick={() => setShowNewSeries(true)}>
-              + Ny serie
-            </button>
+        {pages > 1 && (
+          <div className="adm-pagination">
+            <button className="adm-page-btn" disabled={page === 1} onClick={() => setPage(page - 1)}>← Forrige</button>
+            <span className="adm-page-info">Side {page} av {pages} · {fmtNum(total)} totalt</span>
+            <button className="adm-page-btn" disabled={page === pages} onClick={() => setPage(page + 1)}>Neste →</button>
           </div>
+        )}
+      </div>
 
-          <div className="adm-table-wrap">
-            <table className="adm-table">
-              <thead>
-                <tr>
-                  <th>Serienavn</th>
-                  <th>Slug</th>
-                  <th>By</th>
-                  <th>Utgaver</th>
-                  <th />
-                </tr>
-              </thead>
-              <tbody>
-                {serLoading && <tr><td colSpan={5} className="adm-loading">Laster…</td></tr>}
-                {!serLoading && serRows.length === 0 && (
-                  <tr><td colSpan={5} className="adm-empty">Ingen serier funnet</td></tr>
-                )}
-                {!serLoading && serRows.map((s) => (
-                  <tr key={s.id} className="adm-tr">
-                    <td className="adm-td-name"><span className="adm-name">{s.name}</span></td>
-                    <td className="adm-td-mono adm-slug">{s.slug}</td>
-                    <td className="adm-td-mono">{s.location ?? "—"}</td>
-                    <td className="adm-td-num">
-                      <span className={`adm-edition-count${s.edition_count === 0 ? " zero" : ""}`}>
-                        {s.edition_count}
-                      </span>
-                    </td>
-                    <td>
-                      <button className="adm-row-btn" onClick={() => openSeries(s.id)}>
-                        Se utgaver →
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
-
-      {/* ════════════════════════════════════
-          EDIT EVENT DRAWER
-      ════════════════════════════════════ */}
-      {editEvent && (
-        <EventDrawer
-          event={editEvent}
-          onClose={() => setEditEvent(null)}
-          onSave={(patch) => saveEvent(editEvent, patch)}
-          onSaveRace={saveRace}
-          onOpenSeries={openSeries}
-        />
-      )}
-
-      {/* ════════════════════════════════════
-          SERIES DETAIL DRAWER
-      ════════════════════════════════════ */}
-      {editSeries && (
-        <SeriesDrawer
-          series={editSeries}
-          onClose={() => setEditSeries(null)}
-          onSave={async (patch) => {
-            const res = await fetch(`/api/admin/series/${editSeries.id}`, {
-              method: "PATCH",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify(patch),
-            }).then((r) => r.json());
-            if (res.ok) { toast("Lagret ✓"); setEditSeries(null); loadSeries(serQ); }
-            else toast("Feil", "err");
-          }}
-          onDelete={() => deleteSeries(editSeries.id)}
-          onOpenEvent={openEvent}
-        />
-      )}
-
-      {/* ════════════════════════════════════
-          ASSIGN SERIES MODAL
-      ════════════════════════════════════ */}
-      {showAssign && (
-        <div className="adm-modal-backdrop" onClick={() => setShowAssign(false)}>
+      {assign && (
+        <div className="adm-modal-backdrop" onClick={() => setAssign(false)}>
           <div className="adm-modal" onClick={(e) => e.stopPropagation()}>
             <div className="adm-modal-head">
-              <span>Koble {selected.size} event{selected.size !== 1 ? "s" : ""} til serie</span>
-              <button className="adm-modal-close" onClick={() => setShowAssign(false)}>✕</button>
+              <span>Legg {selected.size} event{selected.size !== 1 ? "s" : ""} i løp</span>
+              <button className="adm-modal-close" onClick={() => setAssign(false)}>✕</button>
             </div>
             <div className="adm-modal-body">
-              <div className="adm-search-wrap" style={{ marginBottom: 12 }}>
-                <svg className="adm-search-icon" width="14" height="14" viewBox="0 0 14 14" fill="none">
-                  <circle cx="5.5" cy="5.5" r="3.5" stroke="currentColor" strokeWidth="1.5"/>
-                  <path d="M8.5 8.5l3 3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
-                </svg>
-                <input
-                  className="adm-search"
-                  placeholder="Søk serienavn…"
-                  value={assignQ}
-                  onChange={(e) => setAssignQ(e.target.value)}
-                  autoFocus
-                />
-              </div>
-              <div className="adm-assign-list">
-                {assignResults.map((s) => (
+              <SearchInput value={assignQ} onChange={setAssignQ} placeholder="Søk etter løp…" autoFocus />
+              <div className="adm-assign-list" style={{ marginTop: 12 }}>
+                {hits.map((g) => (
                   <div
-                    key={s.id}
-                    className={`adm-assign-row${assignSeries?.id === s.id ? " sel" : ""}`}
-                    onClick={() => setAssignSeries(s)}
+                    key={g.slug}
+                    className="adm-assign-row"
+                    onClick={async () => {
+                      if (busy) return;
+                      if (await act({ action: "add", slug: g.slug, eventIds: [...selected] }, `Lagt i «${g.name}» ✓`)) {
+                        setAssign(false);
+                        setSelected(new Set());
+                        loadEvents(q, page);
+                      }
+                    }}
                   >
-                    <div className="adm-assign-name">{s.name}</div>
-                    <div className="adm-assign-meta">{s.edition_count} utgaver</div>
+                    <div className="adm-assign-name">{g.name}</div>
+                    <div className="adm-assign-meta">{g.editions.length} utgaver · {years(g)}</div>
                   </div>
                 ))}
-                {assignResults.length === 0 && (
-                  <div className="adm-empty" style={{ padding: "20px 0" }}>Ingen serier. Opprett en under Serier-fanen.</div>
-                )}
+                {assignQ.trim().length >= 2 && hits.length === 0 && <div className="adm-empty" style={{ padding: "20px 0" }}>Ingen løp funnet</div>}
               </div>
-            </div>
-            <div className="adm-modal-foot">
-              <button
-                className="adm-btn adm-btn--primary"
-                disabled={!assignSeries}
-                onClick={() => assignSeries && assignToSeries(assignSeries.id)}
-              >
-                Koble til{assignSeries ? ` "${assignSeries.name}"` : ""}
-              </button>
-              <button className="adm-btn adm-btn--ghost" onClick={() => setShowAssign(false)}>Avbryt</button>
             </div>
           </div>
         </div>
       )}
-
-      {/* ════════════════════════════════════
-          NEW SERIES MODAL
-      ════════════════════════════════════ */}
-      {showNewSeries && (
-        <div className="adm-modal-backdrop" onClick={() => setShowNewSeries(false)}>
-          <div className="adm-modal" style={{ maxWidth: 420 }} onClick={(e) => e.stopPropagation()}>
-            <div className="adm-modal-head">
-              <span>Ny serie</span>
-              <button className="adm-modal-close" onClick={() => setShowNewSeries(false)}>✕</button>
-            </div>
-            <div className="adm-modal-body">
-              <label className="adm-label">Serienavn</label>
-              <input
-                className="adm-input"
-                placeholder="f.eks. Bergen City Marathon"
-                value={newSeriesName}
-                onChange={(e) => setNewSeriesName(e.target.value)}
-                onKeyDown={(e) => e.key === "Enter" && createSeries()}
-                autoFocus
-              />
-            </div>
-            <div className="adm-modal-foot">
-              <button className="adm-btn adm-btn--primary" onClick={createSeries}>Opprett</button>
-              <button className="adm-btn adm-btn--ghost" onClick={() => setShowNewSeries(false)}>Avbryt</button>
-            </div>
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
-
-/* ─── Event Drawer ───────────────────────────────────────────────────────── */
-function EventDrawer({
-  event, onClose, onSave, onSaveRace, onOpenSeries,
-}: {
-  event: EventDetail;
-  onClose: () => void;
-  onSave: (patch: object) => void;
-  onSaveRace: (id: string, patch: object) => void;
-  onOpenSeries: (id: string) => void;
-}) {
-  const [name, setName]           = useState(event.name);
-  const [date, setDate]           = useState(event.start_date ?? "");
-  const [location, setLocation]   = useState(event.location ?? "");
-  const [dirty, setDirty]         = useState(false);
-  const [races, setRaces]         = useState(event.races);
-
-  // Reimport state
-  const [showReimport, setShowReimport] = useState(false);
-  const [ultDistance, setUltDistance]   = useState("");
-  const [ultNation, setUltNation]       = useState("");
-  const [importing, setImporting]       = useState(false);
-  const [importResult, setImportResult] = useState<{
-    ok: boolean;
-    error?: string;
-    inserted?: number;
-    races?: { id: string; name: string; category: string; results: number }[];
-    warnings?: string[];
-  } | null>(null);
-
-  function mark<T>(setter: (v: T) => void) {
-    return (v: T) => { setter(v); setDirty(true); };
-  }
-
-  function handleSave() {
-    onSave({
-      name: name.trim(),
-      start_date: date || null,
-      location: location.trim() || null,
-    });
-  }
-
-  async function updateRaceOverride(raceId: string, val: string | null) {
-    await onSaveRace(raceId, { distance_category_override: val || null });
-    setRaces((prev) => prev.map((r) => r.id === raceId ? { ...r, distance_category_override: val || null } : r));
-  }
-
-  async function runReimport() {
-    setImporting(true);
-    setImportResult(null);
-    try {
-      const res = await fetch(`/api/admin/events/${event.id}/reimport`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(
-          event.source_slug === "ultimate" ? { ultimateDistance: ultDistance.trim(), nation: ultNation.trim() } : {}
-        ),
-      }).then((r) => r.json());
-      setImportResult(res);
-      if (res.ok) {
-        toast("Import OK ✓");
-        setRaces((prev) =>
-          prev.map((r) => {
-            const fresh = res.races?.find((x: { id: string }) => x.id === r.id);
-            return fresh ? { ...r, result_count: fresh.results } : r;
-          })
-        );
-      } else toast(res.error ?? "Import feilet", "err");
-    } catch {
-      setImportResult({ ok: false, error: "Nettverksfeil" });
-      toast("Nettverksfeil", "err");
-    } finally {
-      setImporting(false);
-    }
-  }
-
-  return (
-    <div className="adm-drawer-backdrop" onClick={onClose}>
-      <div className="adm-drawer" onClick={(e) => e.stopPropagation()}>
-        <div className="adm-drawer-head">
-          <span className="adm-drawer-title">Rediger Event</span>
-          <button className="adm-modal-close" onClick={onClose}>✕</button>
-        </div>
-
-        <div className="adm-drawer-body">
-
-          {/* ── Source ID ── */}
-          <div className="adm-field">
-            <label className="adm-label">Kilde</label>
-            <div className="adm-readonly">{event.source_slug} #{event.source_event_id}</div>
-          </div>
-
-          {/* ── Name ── */}
-          <div className="adm-field">
-            <label className="adm-label">Navn</label>
-            <input className="adm-input" value={name} onChange={(e) => mark(setName)(e.target.value)} />
-          </div>
-
-          {/* ── Date + Location ── */}
-          <div className="adm-field-row">
-            <div className="adm-field">
-              <label className="adm-label">Dato</label>
-              <input type="date" className="adm-input" value={date} onChange={(e) => mark(setDate)(e.target.value)} />
-            </div>
-            <div className="adm-field">
-              <label className="adm-label">By / Sted</label>
-              <input className="adm-input" value={location} onChange={(e) => mark(setLocation)(e.target.value)} />
-            </div>
-          </div>
-
-          {/* ── Series ── */}
-          <div className="adm-field">
-            <label className="adm-label">Serie</label>
-            {event.series
-              ? (
-                <div className="adm-series-linked">
-                  <span className="adm-series-tag" onClick={() => onOpenSeries(event.series!.id)}>
-                    {event.series.name}
-                  </span>
-                  <span className="adm-series-slug">{event.series.slug}</span>
-                </div>
-              )
-              : <div className="adm-warn">Ikke koblet til noen serie. Velg eventet i listen og bruk "Koble til serie".</div>
-            }
-          </div>
-
-          {/* ── Races ── */}
-          <div className="adm-field">
-            <label className="adm-label">Løp / distanser under dette eventet</label>
-            <div className="adm-race-list">
-              {races.map((r) => (
-                <div key={r.id} className="adm-race-row">
-                  <div className="adm-race-info">
-                    <span className="adm-race-name">{r.name}</span>
-                    <span className="adm-race-count">{r.result_count.toLocaleString("nb-NO")} resultater</span>
-                    <div className="adm-race-dists">
-                      {r.inferred_distances.map((d) => <DistBadge key={d} dist={d} />)}
-                      {r.inferred_distances.length === 0 && <span className="adm-warn">Ingen distanse</span>}
-                    </div>
-                  </div>
-                  <div className="adm-race-override">
-                    <label className="adm-label" style={{ marginBottom: 4 }}>Override distanse</label>
-                    <select
-                      className="adm-select"
-                      value={r.distance_category_override ?? ""}
-                      onChange={(e) => updateRaceOverride(r.id, e.target.value)}
-                    >
-                      <option value="">— ingen override —</option>
-                      <option value="5K">5K</option>
-                      <option value="10K">10K</option>
-                      <option value="HM">HM</option>
-                      <option value="M">Maraton</option>
-                      <option value="OTHER">Annet</option>
-                    </select>
-                  </div>
-                </div>
-              ))}
-              {races.length === 0 && <div className="adm-empty">Ingen løp under dette eventet ennå.</div>}
-            </div>
-          </div>
-
-          {/* ── Reimport section ── */}
-          <div className="adm-field">
-            <div className="adm-reimport-header">
-              <label className="adm-label" style={{ marginBottom: 0 }}>Reimporter resultater</label>
-              <button
-                className="adm-btn adm-btn--ghost"
-                style={{ fontSize: 10, padding: "4px 10px" }}
-                onClick={() => { setShowReimport(!showReimport); setImportResult(null); }}
-              >
-                {showReimport ? "Skjul" : "Vis"}
-              </button>
-            </div>
-
-            {showReimport && (
-              <div className="adm-reimport-box">
-                <p className="adm-reimport-help">
-                  Henter eventet på nytt fra {event.source_slug} (#{event.source_event_id}) og erstatter resultatene i
-                  alle distansene. Navn, dato og distanse-overrides du har satt her beholdes.
-                </p>
-
-                {event.source_slug === "ultimate" && (
-                  <div className="adm-field-row" style={{ marginTop: 12 }}>
-                    <div className="adm-field">
-                      <label className="adm-label">Kun distanse-ID (valgfritt)</label>
-                      <input
-                        className="adm-input adm-input--mono"
-                        placeholder="alle"
-                        value={ultDistance}
-                        onChange={(e) => setUltDistance(e.target.value)}
-                      />
-                    </div>
-                    <div className="adm-field">
-                      <label className="adm-label">Kun nasjon (valgfritt)</label>
-                      <input
-                        className="adm-input adm-input--mono"
-                        placeholder="f.eks. NOR"
-                        value={ultNation}
-                        onChange={(e) => setUltNation(e.target.value)}
-                      />
-                    </div>
-                  </div>
-                )}
-
-                <button
-                  className="adm-btn adm-btn--import"
-                  onClick={runReimport}
-                  disabled={importing}
-                  style={{ marginTop: 14 }}
-                >
-                  {importing
-                    ? <><span className="adm-spinner" /> Importerer…</>
-                    : `↓ Reimporter fra ${event.source_slug}`
-                  }
-                </button>
-
-                {importResult && (
-                  <div className={`adm-reimport-result${importResult.ok ? " ok" : " err"}`}>
-                    {importResult.ok ? (
-                      <>
-                        <div className="adm-reimport-result-title">✓ Import fullført</div>
-                        <div className="adm-reimport-result-line">
-                          {Number(importResult.inserted ?? 0).toLocaleString("nb-NO")} resultater importert
-                        </div>
-                        {importResult.races && (
-                          <div className="adm-reimport-races">
-                            {importResult.races.map((r) => (
-                              <span key={r.id} className="adm-reimport-race-tag">
-                                {r.name} · {r.category} · {r.results}
-                              </span>
-                            ))}
-                          </div>
-                        )}
-                        {importResult.warnings?.map((w, i) => (
-                          <div key={i} className="adm-reimport-result-line">⚠ {w}</div>
-                        ))}
-                      </>
-                    ) : (
-                      <>
-                        <div className="adm-reimport-result-title">✗ Import feilet</div>
-                        <div className="adm-reimport-result-line">{importResult.error}</div>
-                      </>
-                    )}
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
-
-        </div>
-
-        <div className="adm-drawer-foot">
-          {dirty && <button className="adm-btn adm-btn--primary" onClick={handleSave}>Lagre endringer</button>}
-          <button className="adm-btn adm-btn--ghost" onClick={onClose}>{dirty ? "Avbryt" : "Lukk"}</button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-/* ─── Series Drawer ──────────────────────────────────────────────────────── */
-function SeriesDrawer({
-  series, onClose, onSave, onDelete, onOpenEvent,
-}: {
-  series: SeriesDetail;
-  onClose: () => void;
-  onSave: (patch: object) => void;
-  onDelete: () => void;
-  onOpenEvent: (id: string) => void;
-}) {
-  const [name, setName]         = useState(series.name);
-  const [location, setLocation] = useState(series.location ?? "");
-  const [notes, setNotes]       = useState(series.notes ?? "");
-  const [dirty, setDirty]       = useState(false);
-
-  function mark<T>(setter: (v: T) => void) {
-    return (v: T) => { setter(v); setDirty(true); };
-  }
-
-  return (
-    <div className="adm-drawer-backdrop" onClick={onClose}>
-      <div className="adm-drawer" onClick={(e) => e.stopPropagation()}>
-        <div className="adm-drawer-head">
-          <span className="adm-drawer-title">Serie: {series.name}</span>
-          <button className="adm-modal-close" onClick={onClose}>✕</button>
-        </div>
-
-        <div className="adm-drawer-body">
-          <div className="adm-field">
-            <label className="adm-label">Serienavn</label>
-            <input className="adm-input" value={name} onChange={(e) => mark(setName)(e.target.value)} />
-          </div>
-          <div className="adm-field-row">
-            <div className="adm-field">
-              <label className="adm-label">Slug</label>
-              <div className="adm-readonly">{series.slug}</div>
-            </div>
-            <div className="adm-field">
-              <label className="adm-label">By / Sted</label>
-              <input className="adm-input" value={location} onChange={(e) => mark(setLocation)(e.target.value)} />
-            </div>
-          </div>
-          <div className="adm-field">
-            <label className="adm-label">Notater (admin)</label>
-            <textarea
-              className="adm-input adm-textarea"
-              value={notes}
-              onChange={(e) => mark(setNotes)(e.target.value)}
-              placeholder="Interne notater om denne serien…"
-              rows={3}
-            />
-          </div>
-
-          {/* Editions */}
-          <div className="adm-field">
-            <label className="adm-label">
-              Utgaver ({series.editions.length})
-            </label>
-            <div className="adm-editions">
-              {series.editions.length === 0 && (
-                <div className="adm-empty">Ingen events koblet til denne serien ennå.</div>
-              )}
-              {series.editions.map((ed, i) => (
-                <div key={ed.id} className="adm-edition-row">
-                  <div className="adm-edition-year">
-                    {ed.start_date ? new Date(ed.start_date).getFullYear() : "—"}
-                  </div>
-                  <div className="adm-edition-info">
-                    <span className="adm-edition-name">{ed.name}</span>
-                    <span className="adm-edition-meta">
-                      {ed.result_count.toLocaleString("nb-NO")} resultater · {ed.race_count} løp
-                    </span>
-                    <div>{ed.distances.map((d) => <DistBadge key={d} dist={d} />)}</div>
-                  </div>
-                  <div className="adm-edition-right">
-                    {i === 0 && <span className="adm-edition-badge">Siste</span>}
-                    <button className="adm-row-btn" onClick={() => onOpenEvent(ed.id)}>
-                      Rediger →
-                    </button>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-
-        <div className="adm-drawer-foot">
-          {dirty && (
-            <button className="adm-btn adm-btn--primary" onClick={() => onSave({ name, location: location || null, notes: notes || null })}>
-              Lagre
-            </button>
-          )}
-          <button className="adm-btn adm-btn--ghost" onClick={onClose}>{dirty ? "Avbryt" : "Lukk"}</button>
-          <button className="adm-btn adm-btn--danger" style={{ marginLeft: "auto" }} onClick={onDelete}>
-            Slett serie
-          </button>
-        </div>
-      </div>
     </div>
   );
 }

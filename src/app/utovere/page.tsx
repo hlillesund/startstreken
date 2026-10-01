@@ -410,11 +410,13 @@ export default function UtoverePage() {
     fetchRanks(id, YEAR).then((r) => alive() && setRanks(r));
 
     setRefreshing(true);
-    await refreshFromSource(id);
+    const changed = await refreshFromSource(id);
     if (!alive()) return;
-    const fresh = await fetchResults(id);
-    if (!alive()) return;
-    if (fresh.length) setResults(fresh);
+    if (changed) {
+      const fresh = await fetchResults(id);
+      if (!alive()) return;
+      if (fresh.length) setResults(fresh);
+    }
     setRefreshing(false);
   }, []);
 

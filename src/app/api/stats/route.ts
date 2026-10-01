@@ -1,15 +1,15 @@
 // src/app/api/stats/route.ts
+import { unstable_cache } from "next/cache";
 import { prisma } from "@/lib/prisma";
 
 export const dynamic = "force-dynamic";
 
 type StatsRow = { athletes: bigint; results: bigint; events: bigint; events_year: bigint };
 
-export async function GET() {
-  const year = new Date().getFullYear();
-  const from = new Date(Date.UTC(year, 0, 1));
-
-  try {
+// Counting every result is slow, so the numbers are shared from the data cache.
+const getStats = unstable_cache(
+  async (year: number) => {
+    const from = new Date(Date.UTC(year, 0, 1));
     const [row] = await prisma.$queryRaw<StatsRow[]>`
       SELECT
         (SELECT COUNT(*) FROM athletes)::bigint AS athletes,
@@ -18,16 +18,23 @@ export async function GET() {
         (SELECT COUNT(*) FROM events e WHERE e.start_date >= ${from}
            AND EXISTS (SELECT 1 FROM races ra JOIN results r ON r.race_id = ra.id WHERE ra.event_id = e.id))::bigint AS events_year
     `;
+    return {
+      athletes: Number(row?.athletes ?? 0),
+      results: Number(row?.results ?? 0),
+      events: Number(row?.events ?? 0),
+      events_year: Number(row?.events_year ?? 0),
+    };
+  },
+  ["site-stats-v1"],
+  { revalidate: 3600 }
+);
 
+export async function GET() {
+  const year = new Date().getFullYear();
+  try {
+    const stats = await getStats(year);
     return Response.json(
-      {
-        ok: true,
-        year,
-        athletes: Number(row?.athletes ?? 0),
-        results: Number(row?.results ?? 0),
-        events: Number(row?.events ?? 0),
-        events_year: Number(row?.events_year ?? 0),
-      },
+      { ok: true, year, ...stats },
       { headers: { "Cache-Control": "public, s-maxage=3600, stale-while-revalidate=86400" } }
     );
   } catch (err) {

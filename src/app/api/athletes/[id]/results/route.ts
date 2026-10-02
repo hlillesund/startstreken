@@ -1,103 +1,20 @@
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
+import { getAthleteResults } from "@/lib/athlete-results";
 
 export const dynamic = "force-dynamic";
 
-export async function GET(
-  _req: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
+function isUuid(v: string) {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(v);
+}
+
+export async function GET(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
+  if (!isUuid(id)) return NextResponse.json([]);
 
-  // 1. Fetch all results for this athlete
-  const results = await prisma.results.findMany({
-    where: { athlete_id: id, time_ms: { gt: 0 } },
-    select: {
-      id:                true,
-      time_ms:           true,
-      rank_overall:      true,
-      rank_gender:       true,
-      distance_category: true,
-      club:              true,
-      bib:               true,
-      raw:               true,
-      races: {
-        select: {
-          id:   true,
-          name: true,
-          _count: { select: { results: true } },
-          events: {
-            select: {
-              id:         true,
-              name:       true,
-              start_date: true,
-              location:   true,
-            },
-          },
-        },
-      },
-    },
-    orderBy: [
-      { races: { events: { start_date: "desc" } } },
-    ],
-  });
-
-  if (results.length === 0) return NextResponse.json([]);
-
-  // 2. Get gender-specific finisher counts per race in one query
-  //    groupBy race_id + athlete gender
-  const raceIds = [...new Set(results.map((r) => r.races.id))];
-
-  // Raw SQL via $queryRaw is cleanest here — one round trip
-  const genderCounts = await prisma.$queryRaw<
-    { race_id: string; gender: string; cnt: bigint }[]
-  >`
-    SELECT r.race_id, a.gender, COUNT(*)::bigint AS cnt
-    FROM results r
-    JOIN athletes a ON a.id = r.athlete_id
-    WHERE r.race_id = ANY(${raceIds}::uuid[])
-      AND r.time_ms > 0
-      AND a.gender IS NOT NULL
-    GROUP BY r.race_id, a.gender
-  `;
-
-  // Build lookup: raceId → { M: n, F: n }
-  const genderMap = new Map<string, { M: number; F: number }>();
-  for (const row of genderCounts) {
-    if (!genderMap.has(row.race_id)) genderMap.set(row.race_id, { M: 0, F: 0 });
-    const entry = genderMap.get(row.race_id)!;
-    if (row.gender === "M") entry.M = Number(row.cnt);
-    if (row.gender === "F") entry.F = Number(row.cnt);
+  try {
+    return NextResponse.json(await getAthleteResults(id));
+  } catch (err) {
+    console.error("[athlete results] error:", err);
+    return NextResponse.json({ error: "RESULTS_FAILED" }, { status: 500 });
   }
-
-  // 3. Shape the output
-  // Results where raw contains "ArrangementUID" were pulled via refresh-eqtiming
-  // for individual athletes — the race hasn't been fully imported so only this
-  // athlete exists in the DB. Ranks for these are meaningless (#1 of 1).
-  // Full CSV imports store { source, eventId, raceName, reportId } with no ArrangementUID.
-  const out = results.map((r) => {
-    const gc = genderMap.get(r.races.id);
-    const rawJson = r.raw as Record<string, unknown> | null;
-    const isFullyImported = !rawJson?.ArrangementUID;
-    return {
-      race_id:            r.races.id,
-      event_id:           r.races.events.id,
-      full:               isFullyImported,
-      race_name:          r.races.name,
-      event_name:         r.races.events.name,
-      start_date:         r.races.events.start_date?.toISOString().split("T")[0] ?? null,
-      location:           r.races.events.location ?? null,
-      time_ms:            r.time_ms,
-      distance_category:  r.distance_category,
-      club:               r.club,
-      bib:                r.bib,
-      rank_overall:       isFullyImported ? (r.rank_overall ?? null) : null,
-      rank_gender:        isFullyImported ? (r.rank_gender  ?? null) : null,
-      total_finishers:    isFullyImported ? r.races._count.results : null,
-      total_finishers_m:  isFullyImported ? (gc?.M ?? null) : null,
-      total_finishers_f:  isFullyImported ? (gc?.F ?? null) : null,
-    };
-  });
-
-  return NextResponse.json(out);
 }

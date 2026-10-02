@@ -1,22 +1,11 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { prisma } from "@/lib/prisma";
+import { getTop100, isSeasonCategory, type TopEntry } from "@/lib/season";
 import { MAIN_DISTANCES, formatDateShort, formatPace, formatTime } from "@/components/utovere/utils";
 
 export const dynamic = "force-dynamic";
 
 const ALLOWED = new Set<string>(MAIN_DISTANCES.map((d) => d.key));
-
-type Row = {
-  athlete_id: string;
-  display_name: string;
-  birth_year: number | null;
-  best_time_ms: bigint;
-  rank: bigint;
-  club: string | null;
-  event_name: string | null;
-  start_date: Date | null;
-};
 
 type Search = { category?: string; year?: string; gender?: string };
 
@@ -45,44 +34,10 @@ function href(p: { category: string; year: number; gender: string }) {
 export default async function Topp100Page({ searchParams }: { searchParams: Promise<Search> }) {
   const { category, year, gender, now } = parse(await searchParams);
   const dist = MAIN_DISTANCES.find((d) => d.key === category)!;
-  const from = new Date(Date.UTC(year, 0, 1));
-  const to = new Date(Date.UTC(year + 1, 0, 1));
-
-  let rows: Row[] = [];
+  let rows: TopEntry[] = [];
   let failed = false;
   try {
-    rows = await prisma.$queryRaw<Row[]>`
-      WITH best AS (
-        SELECT DISTINCT ON (r.athlete_id)
-          r.athlete_id,
-          a.display_name,
-          a.birth_year,
-          r.time_ms AS best_time_ms,
-          r.club,
-          e.name AS event_name,
-          e.start_date
-        FROM results r
-        JOIN races ra ON ra.id = r.race_id
-        JOIN events e ON e.id = ra.event_id
-        JOIN athletes a ON a.id = r.athlete_id
-        WHERE r.distance_category = ${category}
-          -- only fully imported events (profile-view history rows are partial fields)
-          AND NOT (r.raw ? 'ArrangementUID')
-          AND r.time_ms > 0
-          AND e.start_date >= ${from}
-          AND e.start_date < ${to}
-          AND a.gender = ${gender}
-        ORDER BY r.athlete_id, r.time_ms ASC
-      ),
-      ranked AS (
-        SELECT *, DENSE_RANK() OVER (ORDER BY best_time_ms ASC) AS rank
-        FROM best
-      )
-      SELECT athlete_id::text, display_name, birth_year, best_time_ms::bigint, rank, club, event_name, start_date
-      FROM ranked
-      WHERE rank <= 100
-      ORDER BY rank, display_name;
-    `;
+    rows = isSeasonCategory(category) ? await getTop100(category, year, gender) : [];
   } catch (err) {
     console.error("[topp100] error:", err);
     failed = true;
@@ -132,9 +87,7 @@ export default async function Topp100Page({ searchParams }: { searchParams: Prom
             {rows.length > 0 && (
               <ol className="ss-rank-table">
                 {rows.map((row) => {
-                  const rank = Number(row.rank);
-                  const ms = Number(row.best_time_ms);
-                  const date = row.start_date ? row.start_date.toISOString().slice(0, 10) : null;
+                  const { rank, best_time_ms: ms, start_date: date } = row;
                   return (
                     <li key={row.athlete_id}>
                       <Link href={`/utovere?athleteId=${row.athlete_id}`} className="ss-rank-row">

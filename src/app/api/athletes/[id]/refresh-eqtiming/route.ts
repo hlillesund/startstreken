@@ -1,6 +1,7 @@
 // src/app/api/athletes/[id]/refresh-eqtiming/route.ts
 import { prisma } from "@/lib/prisma";
 import { importEqHistory } from "@/lib/import/eqtiming-history";
+import { invalidateAthlete } from "@/lib/athlete-results";
 
 type Ctx = { params: Promise<{ id: string }> };
 
@@ -35,6 +36,7 @@ export async function POST(_req: Request, ctx: Ctx) {
       inserted += res.inserted;
       throttled &&= Boolean(res.throttled);
     }
+    if (inserted > 0) invalidateAthlete(athleteId);
     return Response.json({ ok: true, athleteId, inserted, throttled });
   } catch (e) {
     return Response.json(

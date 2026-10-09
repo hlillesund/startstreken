@@ -129,8 +129,8 @@ export default function TimeChart({ series, xType, height = 240, area = false }:
 
         {yTicks.map((v) => (
           <g key={v}>
-            <line x1={PL} x2={width - PR} y1={sy(v)} y2={sy(v)} stroke="#e7eaee" strokeWidth={1} />
-            <text x={PL - 8} y={sy(v) + 4} textAnchor="end" fill="#858d99" fontSize={11} fontWeight={500}>
+            <line x1={PL} x2={width - PR} y1={sy(v)} y2={sy(v)} style={{ stroke: "var(--ss-chart-grid)" }} strokeWidth={1} />
+            <text x={PL - 8} y={sy(v) + 4} textAnchor="end" style={{ fill: "var(--ss-chart-label)" }} fontSize={11} fontWeight={500}>
               {formatTime(v)}
             </text>
           </g>
@@ -141,7 +141,7 @@ export default function TimeChart({ series, xType, height = 240, area = false }:
             x={sx(t.x)}
             y={H - 8}
             textAnchor={i === 0 && xType === "date" ? "start" : i === xTicks.length - 1 && xType === "date" ? "end" : "middle"}
-            fill="#858d99"
+            style={{ fill: "var(--ss-chart-label)" }}
             fontSize={11}
             fontWeight={500}
           >
@@ -164,7 +164,7 @@ export default function TimeChart({ series, xType, height = 240, area = false }:
                   cx={sx(p.x)}
                   cy={sy(p.y)}
                   r={p.highlight ? 5 : 3.5}
-                  fill={p.highlight ? s.color : "#fff"}
+                  fill={p.highlight ? s.color : "var(--ss-surface)"}
                   stroke={s.color}
                   strokeWidth={2}
                 />
@@ -175,8 +175,8 @@ export default function TimeChart({ series, xType, height = 240, area = false }:
 
         {hp && hs && (
           <g pointerEvents="none">
-            <line x1={sx(hp.x)} x2={sx(hp.x)} y1={PT} y2={H - PB} stroke="#0e1116" strokeOpacity={0.25} strokeDasharray="3 3" />
-            <circle cx={sx(hp.x)} cy={sy(hp.y)} r={6.5} fill={hs.color} stroke="#fff" strokeWidth={2.5} />
+            <line x1={sx(hp.x)} x2={sx(hp.x)} y1={PT} y2={H - PB} style={{ stroke: "var(--ss-fg)" }} strokeOpacity={0.25} strokeDasharray="3 3" />
+            <circle cx={sx(hp.x)} cy={sy(hp.y)} r={6.5} fill={hs.color} style={{ stroke: "var(--ss-surface)" }} strokeWidth={2.5} />
           </g>
         )}
 

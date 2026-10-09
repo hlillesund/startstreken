@@ -5,7 +5,7 @@ import TimeChart from "@/components/ui/TimeChart";
 import type { AthleteResultRow } from "./types";
 import { formatDateShort } from "./utils";
 
-export default function TrendChart({ rows, color = "#0e1116" }: { rows: AthleteResultRow[]; color?: string }) {
+export default function TrendChart({ rows, color = "#234e95" }: { rows: AthleteResultRow[]; color?: string }) {
   const series = useMemo(() => {
     const data = rows.filter((r) => r.start_date);
     const best = data.reduce<AthleteResultRow | null>((b, r) => (!b || r.time_ms < b.time_ms ? r : b), null);

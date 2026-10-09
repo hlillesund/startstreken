@@ -8,6 +8,7 @@ import AthleteSearch from "@/components/AthleteSearch";
 import TopLeaderboards from "@/components/utovere/TopLeaderBoards";
 import { dateParts, distanceLabel, initials } from "@/components/utovere/utils";
 import { useRecentAthletes } from "@/lib/recent-athletes";
+import { LogoMark } from "@/components/ui/Logo";
 
 type Stats = { athletes: number; results: number; events: number; events_year: number; year: number };
 type RecentEvent = {
@@ -120,7 +121,6 @@ export default function HomeClient() {
       <section className="ss-hero">
         <div className="ss-container">
           <div className="ss-hero-inner">
-            
             <h1 className="ss-hero-title">
               Alle løpsresultater.
               <br />
@@ -136,18 +136,18 @@ export default function HomeClient() {
               onSelect={(h) => router.push(`/utovere?athleteId=${h.id}`)}
               onSubmit={(q) => router.push(`/utovere?q=${encodeURIComponent(q)}`)}
             />
-
-           
           </div>
         </div>
       </section>
 
       <div className="ss-container">
+        <div className="ss-startline" aria-hidden="true" />
+
         <div className="ss-stats">
           {statItems.map((s) => (
-            <div key={s.label} className="ss-card ss-stat">
-              <div className="ss-stat-val ss-num">
-                {s.value != null ? nf.format(s.value) : <span className="ss-skel" style={{ display: "inline-block", width: 80, height: 22 }} />}
+            <div key={s.label} className="ss-stat">
+              <div className="ss-stat-val">
+                {s.value != null ? nf.format(s.value) : <span className="ss-skel" style={{ display: "inline-block", width: 96, height: 34 }} />}
               </div>
               <div className="ss-stat-label">{s.label}</div>
             </div>
@@ -162,7 +162,7 @@ export default function HomeClient() {
             <div className="ss-recent">
               {recent.map((a) => (
                 <Link key={a.id} href={`/utovere?athleteId=${a.id}`} className="ss-recent-item">
-                  <span className="ss-avatar ss-avatar--sm" style={{ width: 36, height: 36 }}>{initials(a.display_name)}</span>
+                  <span className="ss-avatar ss-avatar--sm" style={{ width: 34, height: 34 }}>{initials(a.display_name)}</span>
                   {a.display_name}
                 </Link>
               ))}
@@ -185,22 +185,22 @@ export default function HomeClient() {
             </div>
           </div>
           <div className="ss-features">
-            <Link href="/utovere/sammenlign" className="ss-card ss-feature ss-feature--accent">
-              <span className="ss-feature-icon"><GitCompareArrows size={22} /></span>
+            <Link href="/utovere/sammenlign" className="ss-feature ss-feature--accent">
+              <span className="ss-feature-icon"><GitCompareArrows size={20} /></span>
               <span>
                 <span className="ss-feature-title" style={{ display: "block" }}>Sammenlign utøvere</span>
                 <span className="ss-feature-desc" style={{ display: "block" }}>Rekorder, innbyrdes oppgjør og utvikling – opptil fire løpere side om side.</span>
               </span>
             </Link>
-            <Link href="/utovere/topp100" className="ss-card ss-feature">
-              <span className="ss-feature-icon"><Trophy size={22} /></span>
+            <Link href="/utovere/topp100" className="ss-feature">
+              <span className="ss-feature-icon"><Trophy size={20} /></span>
               <span>
                 <span className="ss-feature-title" style={{ display: "block" }}>Topp 100</span>
                 <span className="ss-feature-desc" style={{ display: "block" }}>Årets raskeste på 5 km, 10 km, halvmaraton og maraton.</span>
               </span>
             </Link>
-            <Link href="/lop" className="ss-card ss-feature">
-              <span className="ss-feature-icon"><Route size={22} /></span>
+            <Link href="/lop" className="ss-feature">
+              <span className="ss-feature-icon"><Route size={20} /></span>
               <span>
                 <span className="ss-feature-title" style={{ display: "block" }}>Finn raske løyper</span>
                 <span className="ss-feature-desc" style={{ display: "block" }}>Se hvilke løp som gir de raskeste tidene og flest deltakere.</span>
@@ -210,14 +210,21 @@ export default function HomeClient() {
         </section>
 
         <footer className="ss-footer">
+          <div className="ss-startline" aria-hidden="true" />
           <div className="ss-footer-row">
-            <span>© {year} Startstreken · Norges løpsdatabase</span>
-            <span style={{ display: "inline-flex", gap: 16 }}>
+            <div className="ss-footer-brand">
+              <span className="ss-logo" aria-hidden="true">
+                <LogoMark />
+                <span className="ss-logo-text">Startstreken</span>
+              </span>
+              <span>Norges løpsdatabase · © {year}</span>
+            </div>
+            <nav className="ss-footer-links" aria-label="Bunnmeny">
               <Link href="/utovere">Utøvere</Link>
               <Link href="/utovere/topp100">Topplister</Link>
               <Link href="/utovere/sammenlign">Sammenlign</Link>
               <Link href="/lop">Løp</Link>
-            </span>
+            </nav>
           </div>
         </footer>
       </div>

@@ -171,7 +171,7 @@ function Profile({
         </button>
         <div className="ss-pagehead-row">
           <div className="ss-ath-head">
-            <span className="ss-avatar ss-avatar--xl" style={{ background: "var(--ss-ink)", color: "var(--ss-accent)" }}>
+            <span className="ss-avatar ss-avatar--xl ss-avatar--brand">
               {initials(athlete.display_name)}
             </span>
             <div style={{ minWidth: 0 }}>

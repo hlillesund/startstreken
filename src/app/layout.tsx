@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from "next";
-import { Inter } from "next/font/google";
+import { Instrument_Serif, Inter } from "next/font/google";
 import "./globals.css";
 import "./ui.css";
 import TopNav from "../components/TopNav";
@@ -8,6 +8,15 @@ import ViewportFix from "../components/ViewportFix";
 const inter = Inter({
   subsets: ["latin"],
   variable: "--font-inter",
+  display: "swap",
+});
+
+// Editorial serif for headlines, big numbers and the wordmark
+const serif = Instrument_Serif({
+  subsets: ["latin", "latin-ext"],
+  weight: "400",
+  style: ["normal", "italic"],
+  variable: "--font-serif",
   display: "swap",
 });
 
@@ -22,7 +31,7 @@ export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
   viewportFit: "cover",
-  themeColor: "#ffffff",
+  themeColor: "#edebdd",
 };
 
 export default function RootLayout({
@@ -32,7 +41,7 @@ export default function RootLayout({
 }) {
   return (
     <html lang="nb">
-      <body className={`${inter.variable} antialiased`}>
+      <body className={`${inter.variable} ${serif.variable} antialiased`}>
         {/* 🔑 iOS Safari viewport fix */}
         <ViewportFix />
 

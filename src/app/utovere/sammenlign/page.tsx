@@ -22,7 +22,8 @@ import { useRecentAthletes } from "@/lib/recent-athletes";
 
 const YEAR = new Date().getFullYear();
 const MAX = 4;
-const COLORS = ["#2563eb", "#e11d48", "#059669", "#d97706"];
+// palette: cobalt, raspberry, then two quieter Nordic tones (spruce, ochre)
+const COLORS = ["#234e95", "#da3d80", "#2e7553", "#b57a12"];
 
 type Loaded = { hit: AthleteHit; results: AthleteResultRow[]; ranks: RankMap; club: string | null };
 type Slot = { id: string; color: string; data: Loaded | null; failed?: boolean };

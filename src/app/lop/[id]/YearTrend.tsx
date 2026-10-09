@@ -5,8 +5,8 @@ import TimeChart, { type ChartSeries } from "@/components/ui/TimeChart";
 export type TrendPoint = { date: string; name: string; avgM: number | null; avgF: number | null };
 
 // Categorical slots 1–2 (validated pair): men blue, women orange.
-const COLOR_M = "#2a78d6";
-const COLOR_F = "#eb6834";
+const COLOR_M = "#234e95";
+const COLOR_F = "#da3d80";
 
 /** 2024-04-27 → 2024.32, so several editions in a year stay apart on a year axis. */
 const yearPos = (d: string) => {

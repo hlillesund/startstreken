@@ -91,7 +91,7 @@ export default function LopBrowser({
     <div className="ss-container">
       <div className="ss-pagehead">
         <div className="ss-eyebrow">Løp</div>
-        <h1 className="ss-h1" style={{ marginTop: 6 }}>Løp og resultater</h1>
+        <h1 className="ss-h1" style={{ marginTop: 6 }}>Løp og <em>resultater</em></h1>
         <p className="ss-sub">
           {nf.format(groups.length)} løp · {nf.format(totals.editions)} utgaver · {nf.format(totals.results)} resultater fra fullstendige
           resultatlister. Se snittider, løyperekorder og hvordan løpet har utviklet seg over år.

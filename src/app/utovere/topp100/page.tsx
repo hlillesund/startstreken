@@ -51,7 +51,7 @@ export default async function Topp100Page({ searchParams }: { searchParams: Prom
         <div className="ss-pagehead">
           <div className="ss-eyebrow">Topplister · {year}</div>
           <h1 className="ss-h1" style={{ marginTop: 6 }}>
-            Topp 100 {dist.label.toLowerCase()}
+            Topp 100 <em>{dist.label.toLowerCase()}</em>
           </h1>
           <p className="ss-sub">Beste tid per utøver i {year}, fra fullstendig importerte resultatlister.</p>
         </div>

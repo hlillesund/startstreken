@@ -22,8 +22,8 @@ import { useRecentAthletes } from "@/lib/recent-athletes";
 
 const YEAR = new Date().getFullYear();
 const MAX = 4;
-// palette: cobalt, raspberry, then two quieter Nordic tones (spruce, ochre)
-const COLORS = ["#234e95", "#da3d80", "#2e7553", "#b57a12"];
+// palette: pink and chalk first, then two quieter tones that read on the night background
+const COLORS = ["#f068b7", "#f5f4f2", "#8db4e8", "#e8b85c"];
 
 type Loaded = { hit: AthleteHit; results: AthleteResultRow[]; ranks: RankMap; club: string | null };
 type Slot = { id: string; color: string; data: Loaded | null; failed?: boolean };
@@ -97,7 +97,7 @@ function HeadToHead({ slots, shared }: { slots: Slot[]; shared: SharedRace[] }) 
       <div className="ss-card">
         <div className="ss-h2h">
           <div className="ss-h2h-side">
-            <span className="ss-avatar" style={{ background: A.color, color: "#fff" }}>{initials(A.data!.hit.display_name)}</span>
+            <span className="ss-avatar" style={{ background: A.color, color: "var(--ss-night)" }}>{initials(A.data!.hit.display_name)}</span>
             <span className="ss-h2h-name">{A.data!.hit.display_name}</span>
           </div>
           <div className="ss-h2h-score">
@@ -106,7 +106,7 @@ function HeadToHead({ slots, shared }: { slots: Slot[]; shared: SharedRace[] }) 
             <span style={{ color: p.wb > p.wa ? B.color : undefined }}>{p.wb}</span>
           </div>
           <div className="ss-h2h-side">
-            <span className="ss-avatar" style={{ background: B.color, color: "#fff" }}>{initials(B.data!.hit.display_name)}</span>
+            <span className="ss-avatar" style={{ background: B.color, color: "var(--ss-night)" }}>{initials(B.data!.hit.display_name)}</span>
             <span className="ss-h2h-name">{B.data!.hit.display_name}</span>
           </div>
         </div>
@@ -558,7 +558,7 @@ function ComparePage() {
         <div className="ss-pagehead">
           <div className="ss-pagehead-row">
             <div>
-              <h1 className="ss-h1">Sammenlign utøvere</h1>
+              <h1 className="ss-h1">Sammenlign <em>utøvere</em></h1>
               <p className="ss-sub">Velg opptil {MAX} løpere og se rekorder, innbyrdes oppgjør og utvikling side om side.</p>
             </div>
             {ids.length >= 2 && (
@@ -636,7 +636,7 @@ function ComparePage() {
                 return (
                   <div key={s.id} className="ss-card ss-cmp-person" style={{ "--c": s.color } as React.CSSProperties}>
                     <div className="ss-cmp-person-top">
-                      <span className="ss-avatar" style={{ background: s.color, color: "#fff" }}>
+                      <span className="ss-avatar" style={{ background: s.color, color: "var(--ss-night)" }}>
                         {d ? initials(d.hit.display_name) : ""}
                       </span>
                       {d ? (

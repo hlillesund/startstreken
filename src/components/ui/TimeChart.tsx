@@ -195,7 +195,7 @@ export default function TimeChart({ series, xType, height = 240, area = false }:
 
       {hp && hs && (
         <div className="ss-chart-tip" style={{ left: tipLeft, top: sy(hp.y) }}>
-          {series.length > 1 && <span style={{ color: "#fff", fontWeight: 700 }}>{hs.name}</span>}
+          {series.length > 1 && <span style={{ color: "var(--ss-night)", fontWeight: 700 }}>{hs.name}</span>}
           <strong>{formatTime(hp.y)}</strong>
           {hp.label && <span style={{ display: "block" }}>{hp.label}</span>}
           {hp.sub && <span style={{ display: "block" }}>{hp.sub}</span>}

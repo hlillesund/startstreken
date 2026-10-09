@@ -1,75 +1,28 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { GitCompareArrows, Home, LogOut, Search, Trophy, User } from "lucide-react";
+import { Flag, GitCompareArrows, Home, Search, Trophy } from "lucide-react";
 import Logo from "@/components/ui/Logo";
 
-type MeUser =
-  | null
-  | {
-      id: string;
-      stravaAthleteId: string;
-      displayName: string | null;
-      avatarUrl: string | null;
-    };
+const isLop = (p: string) => p.startsWith("/lop");
 
 const LINKS = [
   { href: "/utovere", label: "Utøvere", match: (p: string) => p === "/utovere" },
   { href: "/utovere/topp100", label: "Topplister", match: (p: string) => p.startsWith("/utovere/topp100") || p.startsWith("/utovere/ranking") },
   { href: "/utovere/sammenlign", label: "Sammenlign", match: (p: string) => p.startsWith("/utovere/sammenlign") },
-  { href: "/lop", label: "Løp", match: (p: string) => p.startsWith("/lop") },
 ];
 
 const TABS = [
   { href: "/", label: "Hjem", icon: Home, match: (p: string) => p === "/" },
-  { href: "/utovere", label: "Søk", icon: Search, match: (p: string) => p === "/utovere" },
+  { href: "/utovere", label: "Utøvere", icon: Search, match: (p: string) => p === "/utovere" },
+  { href: "/lop", label: "Løp", icon: Flag, match: isLop },
   { href: "/utovere/topp100", label: "Topplister", icon: Trophy, match: (p: string) => p.startsWith("/utovere/topp100") || p.startsWith("/utovere/ranking") },
   { href: "/utovere/sammenlign", label: "Sammenlign", icon: GitCompareArrows, match: (p: string) => p.startsWith("/utovere/sammenlign") },
 ];
 
 export default function TopNav() {
   const pathname = usePathname() ?? "/";
-  const [me, setMe] = useState<MeUser>(null);
-  const [profileOpen, setProfileOpen] = useState(false);
-  const profileRef = useRef<HTMLDivElement | null>(null);
-
-  useEffect(() => {
-    let cancelled = false;
-    fetch("/api/auth/me", { credentials: "include" })
-      .then((res) => (res.ok ? res.json() : null))
-      .then((data) => {
-        if (!cancelled) setMe(data?.user ?? null);
-      })
-      .catch(() => {
-        if (!cancelled) setMe(null);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
-  useEffect(() => {
-    const onDown = (e: PointerEvent) => {
-      if (profileRef.current && !profileRef.current.contains(e.target as Node)) setProfileOpen(false);
-    };
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") setProfileOpen(false);
-    };
-    window.addEventListener("pointerdown", onDown);
-    window.addEventListener("keydown", onKey);
-    return () => {
-      window.removeEventListener("pointerdown", onDown);
-      window.removeEventListener("keydown", onKey);
-    };
-  }, []);
-
-  async function logout() {
-    await fetch("/api/auth/logout", { method: "POST", credentials: "include" });
-    setMe(null);
-    setProfileOpen(false);
-  }
 
   return (
     <>
@@ -92,47 +45,13 @@ export default function TopNav() {
                 Søk etter utøver
               </Link>
             )}
-
-            <div className="ss-profile" ref={profileRef}>
-              <button
-                className="ss-profile-btn"
-                onClick={() => setProfileOpen((v) => !v)}
-                aria-label="Profil"
-                aria-expanded={profileOpen}
-              >
-                {me?.avatarUrl ? (
-                  <img src={me.avatarUrl} alt={me.displayName ?? "Profil"} referrerPolicy="no-referrer" />
-                ) : (
-                  <User size={18} />
-                )}
-              </button>
-
-              {profileOpen && (
-                <div className="ss-menu">
-                  {me ? (
-                    <>
-                      <div className="ss-menu-head">
-                        <div className="ss-menu-name">{me.displayName ?? "Innlogget"}</div>
-                        <div className="ss-menu-meta">Innlogget med Strava</div>
-                      </div>
-                      <button className="ss-menu-item" onClick={logout}>
-                        <LogOut size={16} /> Logg ut
-                      </button>
-                    </>
-                  ) : (
-                    <>
-                      <div className="ss-menu-head">
-                        <div className="ss-menu-name">Ikke logget inn</div>
-                        <div className="ss-menu-meta">Logg inn for å kjøpe og selge startnummer</div>
-                      </div>
-                      <a className="ss-menu-item ss-menu-item--strava" href="/api/auth/strava/start">
-                        Logg inn med Strava
-                      </a>
-                    </>
-                  )}
-                </div>
-              )}
-            </div>
+            <Link
+              href="/lop"
+              className={`ss-btn ss-btn--sm ss-nav-cta${isLop(pathname) ? " active" : ""}`}
+              aria-current={isLop(pathname) ? "page" : undefined}
+            >
+              <Flag size={15} /> Søk løp
+            </Link>
           </div>
         </div>
       </header>

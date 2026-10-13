@@ -1,23 +1,19 @@
 import type { Metadata, Viewport } from "next";
-import { Instrument_Serif, Inter } from "next/font/google";
+import localFont from "next/font/local";
 import { Analytics } from "@vercel/analytics/next";
 import "./globals.css";
 import "./ui.css";
 import TopNav from "../components/TopNav";
 import ViewportFix from "../components/ViewportFix";
 
-const inter = Inter({
-  subsets: ["latin"],
-  variable: "--font-inter",
-  display: "swap",
-});
-
-// Editorial serif for headlines, big numbers and the wordmark
-const serif = Instrument_Serif({
-  subsets: ["latin", "latin-ext"],
-  weight: "400",
-  style: ["normal", "italic"],
-  variable: "--font-serif",
+// Switzer (Indian Type Foundry, free licence via Fontshare), self-hosted
+const switzer = localFont({
+  src: [
+    { path: "./fonts/switzer-400.woff2", weight: "400", style: "normal" },
+    { path: "./fonts/switzer-500.woff2", weight: "500", style: "normal" },
+    { path: "./fonts/switzer-600.woff2", weight: "600", style: "normal" },
+  ],
+  variable: "--font-switzer",
   display: "swap",
 });
 
@@ -32,7 +28,7 @@ export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
   viewportFit: "cover",
-  themeColor: "#1d1f2c",
+  themeColor: "#050505",
 };
 
 export default function RootLayout({
@@ -42,7 +38,7 @@ export default function RootLayout({
 }) {
   return (
     <html lang="nb">
-      <body className={`${inter.variable} ${serif.variable} antialiased`}>
+      <body className={`${switzer.variable} antialiased`}>
         {/* 🔑 iOS Safari viewport fix */}
         <ViewportFix />
 

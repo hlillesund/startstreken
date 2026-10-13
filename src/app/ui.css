@@ -256,8 +256,14 @@ body {
 .ss-hero-meta b { font-weight: 400; color: var(--ss-fg); }
 .ss-hero-meta .ss-scrollhint { margin-left: auto; display: inline-flex; align-items: center; gap: 8px; }
 .ss-wordmark { position: relative; z-index: 1; display: block; margin: 8px 0 0; font-size: 13.1vw; font-weight: 500; line-height: 0.82; letter-spacing: -0.06em; text-transform: uppercase; white-space: nowrap; text-align: center; user-select: none; }
+/* shader gradient glowing behind the wordmark; soft edges so it melts into the page */
+.ss-wordmark-wrap { position: relative; }
+.ss-wm-bg { position: absolute; z-index: 0; left: -6%; right: -6%; top: -55%; bottom: -55%; pointer-events: none; opacity: 0; transition: opacity 2.2s var(--ss-ease) .5s;
+  -webkit-mask-image: radial-gradient(ellipse 50% 50% at 50% 50%, #000 35%, transparent 100%); mask-image: radial-gradient(ellipse 50% 50% at 50% 50%, #000 35%, transparent 100%); }
+.ss-wm-bg.is-ready { opacity: 1; }
+.ss-wm-bg canvas { display: block; width: 100% !important; height: 100% !important; }
 /* each letter carries the same vertical gradient, so they can move on their own */
-.ss-wordmark > span { display: inline-block; padding-bottom: .04em; background: linear-gradient(180deg, #2a1c24 0%, #5c2c48 40%, #b8508e 100%); -webkit-background-clip: text; background-clip: text; color: transparent;
+.ss-wordmark > span { display: inline-block; padding-bottom: .04em; background: linear-gradient(180deg, #ffffff 0%, #ffffff 55%, #f7d3e7 100%); -webkit-background-clip: text; background-clip: text; color: transparent;
   animation: ss-letter 1.2s var(--ss-ease) both; animation-delay: calc(420ms + var(--i, 0) * 55ms); }
 /* the wordmark lifts and fades as the page scrolls (where scroll timelines exist) */
 @supports (animation-timeline: scroll()) {
@@ -279,6 +285,7 @@ body {
   .ss-hero-meta { gap: 18px; padding-top: 44px; flex-wrap: wrap; }
   .ss-hero-meta .ss-scrollhint { display: none; }
   .ss-wordmark { font-size: 13.4vw; margin-top: 18px; }
+  .ss-wm-bg { top: -110%; bottom: -110%; left: -10%; right: -10%; }
 }
 
 /* big statement paragraph with bright highlights */

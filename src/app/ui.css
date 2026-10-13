@@ -726,12 +726,12 @@ a.ss-result:hover { background: var(--ss-surface-2); }
 .ss-ap-pbs { display: grid; grid-auto-flow: column; grid-auto-columns: 74%; gap: 10px; overflow-x: auto; scroll-snap-type: x mandatory; scrollbar-width: none; margin: 0 -16px; padding: 0 16px 4px; scroll-padding: 0 16px; }
 .ss-ap-pbs::-webkit-scrollbar { display: none; }
 .ss-ap-pbs > * { scroll-snap-align: start; }
+.ss-ap-pbs:has(> :only-child) { grid-auto-columns: 100%; }
 @media (min-width: 768px) { .ss-ap-pbs { grid-auto-flow: row; grid-template-columns: repeat(4, minmax(0, 1fr)); margin: 0; padding: 0; gap: 12px; overflow: visible; } }
 .ss-ap-pb { display: flex; flex-direction: column; min-height: 220px; padding: 20px; border: 0; border-radius: 24px; background: var(--ss-surface); color: inherit; text-align: left; font-family: var(--ss-font); cursor: pointer; transition: background .2s, box-shadow .2s, transform .2s; -webkit-tap-highlight-color: transparent; }
 .ss-ap-pb:hover { background: var(--ss-surface-2); }
 .ss-ap-pb:active { transform: scale(.98); }
 .ss-ap-pb.active { box-shadow: inset 0 0 0 1.5px var(--ss-white); }
-.ss-ap-pb.is-empty { cursor: default; background: transparent; box-shadow: inset 0 0 0 1px var(--ss-border-strong); color: var(--ss-fg-3); }
 .ss-ap-pb-top { display: flex; align-items: center; justify-content: space-between; gap: 8px; font-size: 15px; color: var(--ss-fg-3); }
 .ss-ap-pb-time { margin-top: auto; padding-top: 30px; font-size: 46px; font-weight: 500; letter-spacing: -0.055em; line-height: 1; font-variant-numeric: tabular-nums; }
 .ss-ap-pb-sub { margin-top: 10px; font-size: 14px; color: var(--ss-fg-2); }

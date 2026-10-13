@@ -275,7 +275,8 @@ export default function AthleteProfile({
             )}
           </section>
 
-          {/* ── Records ── */}
+          {/* ── Records (only distances with a time) ── */}
+          {MAIN_DISTANCES.some((d) => byCat.get(d.key)?.length) && (
           <section className="ss-ap-section">
             <h2 className="ss-h2 ss-reveal">Personlige <em>rekorder</em></h2>
             <div className="ss-ap-pbs ss-reveal ss-stagger">
@@ -283,15 +284,7 @@ export default function AthleteProfile({
                 const list = byCat.get(d.key) ?? [];
                 const best = fastest(list);
                 const rank = ranks[d.key];
-                if (!best) {
-                  return (
-                    <div key={d.key} className="ss-ap-pb is-empty">
-                      <div className="ss-ap-pb-top"><span>{d.label}</span></div>
-                      <div className="ss-ap-pb-time">—</div>
-                      <div className="ss-ap-pb-sub">Ingen løp ennå</div>
-                    </div>
-                  );
-                }
+                if (!best) return null;
                 return (
                   <button key={d.key} className={`ss-ap-pb${cat === d.key ? " active" : ""}`} onClick={() => pick(d.key)} aria-pressed={cat === d.key}>
                     <div className="ss-ap-pb-top">
@@ -310,6 +303,7 @@ export default function AthleteProfile({
               })}
             </div>
           </section>
+          )}
 
           {/* ── One distance in focus ── */}
           <div className="ss-ap-focus-wrap">

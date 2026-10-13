@@ -7,7 +7,7 @@ import { ShaderGradient, ShaderGradientCanvas } from "@shadergradient/react";
  * Slow, soft ShaderGradient (the Figma plugin's renderer) in the site colours.
  * Loaded on the client only; the wrapper fades it in once the first frame is up.
  */
-export default function HeroGradient() {
+export default function HeroGradient({ className = "ss-wm-bg" }: { className?: string }) {
   const [ready, setReady] = useState(false);
   // client-only component (loaded with ssr: false), so window is available here
   const [still] = useState(() => window.matchMedia("(prefers-reduced-motion: reduce)").matches);
@@ -18,7 +18,7 @@ export default function HeroGradient() {
   }, []);
 
   return (
-    <div className={`ss-wm-bg${ready ? " is-ready" : ""}`} aria-hidden="true">
+    <div className={`ss-sg ${className}${ready ? " is-ready" : ""}`} aria-hidden="true">
       <ShaderGradientCanvas pixelDensity={1} fov={45} pointerEvents="none" lazyLoad powerPreference="low-power" style={{ position: "absolute", inset: 0 }}>
         <ShaderGradient
           control="props"

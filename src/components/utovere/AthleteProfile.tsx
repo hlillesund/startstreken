@@ -1,5 +1,6 @@
 "use client";
 
+import dynamic from "next/dynamic";
 import Link from "next/link";
 import React, { useMemo, useRef, useState } from "react";
 import { ArrowLeft, Check, ChevronRight, GitCompareArrows, Share2 } from "lucide-react";
@@ -9,6 +10,8 @@ import { yearOf, type RankMap } from "./data";
 import { clubSlug } from "@/lib/club-slug";
 import { MAIN_DISTANCES, distanceLabel, distanceMeters, formatDateShort, formatGap, formatPace, formatTime, mostCommon } from "./utils";
 import { careerSummary, distanceMix, formatTopPercent, highlights, predictions, racesPerYear, seasonBests, topPercent } from "./insights";
+
+const HeroGradient = dynamic(() => import("@/components/ui/HeroGradient"), { ssr: false });
 
 const YEAR = new Date().getFullYear();
 const TABS = [...MAIN_DISTANCES.map((d) => ({ key: d.key as string, label: d.short })), { key: "OTHER", label: "Annet" }];
@@ -219,9 +222,12 @@ export default function AthleteProfile({
         <button className="ss-back ss-intro" onClick={onBack}>
           <ArrowLeft size={16} /> Tilbake
         </button>
-        <h1 className="ss-ap-name ss-intro" style={{ "--d": "60ms" } as React.CSSProperties}>
-          {first} {rest.length > 0 && <em>{rest.join(" ")}</em>}
-        </h1>
+        <div className="ss-ap-name-wrap">
+          <HeroGradient className="ss-ap-name-bg" />
+          <h1 className="ss-ap-name ss-intro" style={{ "--d": "60ms" } as React.CSSProperties}>
+            {first} {rest.length > 0 && <em>{rest.join(" ")}</em>}
+          </h1>
+        </div>
         <div className="ss-ap-meta ss-intro" style={{ "--d": "160ms" } as React.CSSProperties}>
           {[genderLabel, athlete.birth_year ? `f. ${athlete.birth_year}${age ? ` (${age} år)` : ""}` : null].filter(Boolean).map((x) => (
             <span key={String(x)}>{x}</span>

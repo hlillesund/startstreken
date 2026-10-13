@@ -6,6 +6,7 @@ import { ArrowLeft, Check, ChevronRight, GitCompareArrows, Share2 } from "lucide
 import CountUp from "@/components/ui/CountUp";
 import type { AthleteHit, AthleteResultRow } from "./types";
 import { yearOf, type RankMap } from "./data";
+import { clubSlug } from "@/lib/club-slug";
 import { MAIN_DISTANCES, distanceLabel, distanceMeters, formatDateShort, formatGap, formatPace, formatTime, mostCommon } from "./utils";
 import { careerSummary, distanceMix, formatTopPercent, highlights, predictions, racesPerYear, seasonBests, topPercent } from "./insights";
 
@@ -206,6 +207,10 @@ export default function AthleteProfile({
   const genderLabel = athlete.gender === "M" ? "Herre" : athlete.gender === "F" ? "Dame" : null;
   const [first, ...rest] = athlete.display_name.split(" ");
   const bestRank = MAIN_DISTANCES.map((d) => ({ d, r: ranks[d.key] })).filter((x) => x.r).sort((a, b) => a.r!.rank - b.r!.rank)[0];
+  // best rank within the age class, shown when it says something the national rank doesn't
+  const bestClass = MAIN_DISTANCES.flatMap((d) => (ranks[d.key]?.cls ? [{ d, c: ranks[d.key]!.cls! }] : []))
+    .filter((x) => x.c.key !== "SEN")
+    .sort((a, b) => a.c.rank / a.c.total - b.c.rank / b.c.total)[0];
 
   return (
     <div className="ss-container ss-ap">
@@ -218,10 +223,20 @@ export default function AthleteProfile({
           {first} {rest.length > 0 && <em>{rest.join(" ")}</em>}
         </h1>
         <div className="ss-ap-meta ss-intro" style={{ "--d": "160ms" } as React.CSSProperties}>
-          {[genderLabel, athlete.birth_year ? `f. ${athlete.birth_year}${age ? ` (${age} år)` : ""}` : null, club].filter(Boolean).map((x) => (
+          {[genderLabel, athlete.birth_year ? `f. ${athlete.birth_year}${age ? ` (${age} år)` : ""}` : null].filter(Boolean).map((x) => (
             <span key={String(x)}>{x}</span>
           ))}
+          {club && clubSlug(club) && (
+            <span>
+              <Link href={`/klubber/${encodeURIComponent(clubSlug(club))}`} className="ss-club-link">{club}</Link>
+            </span>
+          )}
           {bestRank && <span className="ss-ap-pill">#{bestRank.r!.rank} i Norge på {bestRank.d.label.toLowerCase()} {YEAR}</span>}
+          {bestClass && (
+            <Link href={`/utovere/topp100?category=${bestClass.d.key}&gender=${athlete.gender === "F" ? "F" : "M"}&year=${YEAR}&klasse=${bestClass.c.key}`} className="ss-ap-pill ss-ap-pill--ghost">
+              #{bestClass.c.rank} i {bestClass.c.label} på {bestClass.d.label.toLowerCase()}
+            </Link>
+          )}
           {refreshing && <span className="ss-updating">Oppdaterer</span>}
         </div>
         <div className="ss-ap-actions ss-intro" style={{ "--d": "240ms" } as React.CSSProperties}>
@@ -286,7 +301,10 @@ export default function AthleteProfile({
                     <div className="ss-ap-pb-time">{formatTime(best.time_ms)}</div>
                     <div className="ss-ap-pb-sub">{formatPace(best.time_ms, d.meters)} · {formatDateShort(best.start_date)}</div>
                     <div className="ss-ap-pb-event">{best.event_name}</div>
-                    <div className="ss-ap-pb-count">{list.length} løp</div>
+                    <div className="ss-ap-pb-count">
+                      {list.length} løp
+                      {rank?.cls && rank.cls.key !== "SEN" && <span className="ss-ap-pb-cls">#{rank.cls.rank} i {rank.cls.label}</span>}
+                    </div>
                   </button>
                 );
               })}
@@ -333,7 +351,11 @@ export default function AthleteProfile({
                   <div className="ss-ap-fact">
                     <span>Sesongbeste {YEAR}</span>
                     <b>{focus.sb ? formatTime(focus.sb.time_ms) : "—"}</b>
-                    <small>{ranks[cat] ? `Nr. ${ranks[cat]!.rank} av ${ranks[cat]!.total.toLocaleString("nb-NO")} i Norge` : focus.sb ? focus.sb.event_name : "Ingen løp i år"}</small>
+                    <small>
+                      {ranks[cat]
+                        ? `Nr. ${ranks[cat]!.rank} av ${ranks[cat]!.total.toLocaleString("nb-NO")} i Norge${ranks[cat]!.cls && ranks[cat]!.cls!.key !== "SEN" ? ` · nr. ${ranks[cat]!.cls!.rank} i ${ranks[cat]!.cls!.label}` : ""}`
+                        : focus.sb ? focus.sb.event_name : "Ingen løp i år"}
+                    </small>
                   </div>
                   <div className="ss-ap-fact">
                     <span>Snittid</span>

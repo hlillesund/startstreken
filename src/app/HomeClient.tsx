@@ -19,6 +19,7 @@ type Stats = { athletes: number; results: number; events: number; events_year: n
 type RecentEvent = { id: string; name: string; start_date: string | null; location: string | null; finishers: number; categories: string[] };
 type Entry = { athlete_id: string; display_name: string; best_time_ms: number; rank: number; club?: string; event_name?: string };
 type Boards = Record<string, { M: Entry[]; F: Entry[] }>;
+type Club = { slug: string; name: string; runners: number; results: number };
 
 const nf = new Intl.NumberFormat("nb-NO");
 
@@ -174,6 +175,16 @@ const SERVICES = [
   { href: "/utovere/sammenlign", title: "Sammenlign", desc: "Velg opptil fire løpere og se rekorder, innbyrdes oppgjør og sesongbeste side om side." },
   { href: "/utovere/topp100", title: "Topplister", desc: "Årets 100 raskeste herrer og damer på 5 km, 10 km, halvmaraton og maraton." },
   { href: "/lop", title: "Løp", desc: "Finn løpet ditt og se snittider, løyperekorder og hvordan det har utviklet seg år for år." },
+  { href: "/hvor-havner-jeg", title: "Hvor havner jeg?", desc: "Skriv inn en tid og se hvor du havner blant norske løpere, i aldersklassen din og i årets største løp." },
+  { href: "/klubber", title: "Klubber", desc: "Klubbene rangert etter antall løpere og lagtid, med klubbens raskeste og mest aktive." },
+];
+
+/** Example times for «Hvor havner du?» */
+const PLACE_EXAMPLES = [
+  { d: "5K", t: 22 * 60, label: "5 km på 22:00" },
+  { d: "10K", t: 45 * 60, label: "10 km på 45:00" },
+  { d: "HM", t: 3600 + 45 * 60, label: "Halvmaraton på 1:45:00" },
+  { d: "M", t: 3 * 3600 + 30 * 60, label: "Maraton på 3:30:00" },
 ];
 
 const FAQ = [
@@ -204,6 +215,11 @@ export default function HomeClient() {
   const { data: events, done: eventsDone } = useJson<RecentEvent[]>("/api/events/recent?limit=8", (d) => {
     const ev = (d as { events?: RecentEvent[] })?.events;
     return Array.isArray(ev) ? ev : [];
+  });
+
+  const { data: clubs, done: clubsDone } = useJson<Club[]>(`/api/klubber?year=${year}&limit=6`, (d) => {
+    const c = (d as { clubs?: Club[] })?.clubs;
+    return Array.isArray(c) ? c : [];
   });
 
   const n = (v?: number) => (v != null ? nf.format(v) : "…");
@@ -307,6 +323,27 @@ export default function HomeClient() {
           <Leaders boards={boards} year={year} />
         </section>
 
+        {/* ── Where would I place? ── */}
+        <section className="ss-section">
+          <div className="ss-card ss-place-cta ss-reveal">
+            <div>
+              <h2 className="ss-h2">Hvor <em>havner du?</em></h2>
+              <p className="ss-sub">Skriv inn en tid og se hvor mange norske løpere du slår i år, hvor du havner i aldersklassen din og i årets største løp.</p>
+              <Link href="/hvor-havner-jeg" className="ss-btn ss-btn--primary" style={{ marginTop: 24 }}>
+                Prøv med din tid <ArrowUpRight size={17} />
+              </Link>
+            </div>
+            <div className="ss-place-cta-ex ss-stagger">
+              {PLACE_EXAMPLES.map((x) => (
+                <Link key={x.d} href={`/hvor-havner-jeg?d=${x.d}&t=${x.t}`} className="ss-place-cta-chip">
+                  {x.label}
+                  <ArrowUpRight size={16} />
+                </Link>
+              ))}
+            </div>
+          </div>
+        </section>
+
         {/* ── Latest races ── */}
         <section className="ss-section">
           <div className="ss-section-head">
@@ -345,6 +382,42 @@ export default function HomeClient() {
                   </Link>
                 );
               })}
+            </div>
+          )}
+        </section>
+
+        {/* ── Clubs ── */}
+        <section className="ss-section">
+          <div className="ss-section-head">
+            <div>
+              <h2 className="ss-h2 ss-reveal">Klubbene <em>{year}</em></h2>
+              <p className="ss-sub">Klubbene med flest løpere i resultatlistene i år.</p>
+            </div>
+            <Link href="/klubber" className="ss-link">Alle klubber <ArrowUpRight size={16} /></Link>
+          </div>
+          {!clubsDone ? (
+            <div className="ss-skel" style={{ height: 320, borderRadius: 28 }} />
+          ) : !clubs || clubs.length === 0 ? (
+            <div className="ss-card ss-empty">Ingen klubber å vise ennå.</div>
+          ) : (
+            <div className="ss-card ss-reveal">
+              <ol className="ss-rank-table ss-stagger">
+                {clubs.map((c, i) => (
+                  <li key={c.slug}>
+                    <Link href={`/klubber/${encodeURIComponent(c.slug)}`} className="ss-rank-row">
+                      <span className={`ss-rank${i < 3 ? ` ss-rank--${i + 1}` : ""}`}>{i + 1}</span>
+                      <span style={{ minWidth: 0 }}>
+                        <span className="ss-lb-name" style={{ display: "block" }}>{c.name}</span>
+                        <span className="ss-lb-meta" style={{ display: "block" }}>{nf.format(c.results)} resultater</span>
+                      </span>
+                      <span style={{ textAlign: "right" }}>
+                        <span className="ss-lb-time" style={{ display: "block" }}>{nf.format(c.runners)}</span>
+                        <span className="ss-lb-meta" style={{ display: "block" }}>løpere</span>
+                      </span>
+                    </Link>
+                  </li>
+                ))}
+              </ol>
             </div>
           )}
         </section>

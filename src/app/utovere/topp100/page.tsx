@@ -1,13 +1,14 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { getTop100, isSeasonCategory, type TopEntry } from "@/lib/season";
+import { getTop100, getTop100Class, isSeasonCategory, type TopEntry } from "@/lib/season";
+import { AGE_CLASS_KEYS, ageClassByKey, birthRange } from "@/lib/age-class";
 import { MAIN_DISTANCES, formatDateShort, formatPace, formatTime } from "@/components/utovere/utils";
 
 export const dynamic = "force-dynamic";
 
 const ALLOWED = new Set<string>(MAIN_DISTANCES.map((d) => d.key));
 
-type Search = { category?: string; year?: string; gender?: string };
+type Search = { category?: string; year?: string; gender?: string; klasse?: string };
 
 function parse(params: Search) {
   const now = new Date().getFullYear();
@@ -15,29 +16,36 @@ function parse(params: Search) {
   const y = Number(params.year);
   const year = Number.isInteger(y) && y >= 2000 && y <= now ? y : now;
   const gender: "M" | "F" = params.gender === "F" ? "F" : "M";
-  return { category, year, gender, now };
+  const cls = params.klasse ? ageClassByKey(params.klasse, gender) : null;
+  return { category, year, gender, cls, now };
 }
 
 export async function generateMetadata({ searchParams }: { searchParams: Promise<Search> }): Promise<Metadata> {
-  const { category, year, gender } = parse(await searchParams);
+  const { category, year, gender, cls } = parse(await searchParams);
   const dist = MAIN_DISTANCES.find((d) => d.key === category)!.label;
   return {
-    title: `Topp 100 ${dist.toLowerCase()} ${gender === "F" ? "kvinner" : "menn"} ${year} – Startstreken`,
+    title: `Topp 100 ${dist.toLowerCase()} ${cls ? cls.label : gender === "F" ? "kvinner" : "menn"} ${year} – Startstreken`,
     description: `De 100 raskeste norske ${gender === "F" ? "kvinnene" : "mennene"} på ${dist.toLowerCase()} i ${year}.`,
   };
 }
 
-function href(p: { category: string; year: number; gender: string }) {
-  return `/utovere/topp100?category=${p.category}&gender=${p.gender}&year=${p.year}`;
+function href(p: { category: string; year: number; gender: string; klasse?: string | null }) {
+  return `/utovere/topp100?category=${p.category}&gender=${p.gender}&year=${p.year}${p.klasse ? `&klasse=${p.klasse}` : ""}`;
 }
 
 export default async function Topp100Page({ searchParams }: { searchParams: Promise<Search> }) {
-  const { category, year, gender, now } = parse(await searchParams);
+  const { category, year, gender, cls, now } = parse(await searchParams);
   const dist = MAIN_DISTANCES.find((d) => d.key === category)!;
+  const klasse = cls?.key ?? null;
   let rows: TopEntry[] = [];
   let failed = false;
   try {
-    rows = isSeasonCategory(category) ? await getTop100(category, year, gender) : [];
+    if (isSeasonCategory(category)) {
+      if (cls) {
+        const { from, to } = birthRange(cls, year);
+        rows = await getTop100Class(category, year, gender, from, to);
+      } else rows = await getTop100(category, year, gender);
+    }
   } catch (err) {
     console.error("[topp100] error:", err);
     failed = true;
@@ -51,34 +59,47 @@ export default async function Topp100Page({ searchParams }: { searchParams: Prom
         <div className="ss-pagehead">
           <div className="ss-eyebrow">Topplister · {year}</div>
           <h1 className="ss-h1" style={{ marginTop: 6 }}>
-            Topp 100 <em>{dist.label.toLowerCase()}</em>
+            Topp 100 <em>{dist.label.toLowerCase()}{cls ? ` ${cls.label}` : ""}</em>
           </h1>
-          <p className="ss-sub">Beste tid per utøver i {year}, fra fullstendig importerte resultatlister.</p>
+          <p className="ss-sub">
+            Beste tid per utøver i {year}, fra fullstendig importerte resultatlister.
+            {cls ? ` Aldersklasse etter alderen løperen fyller i ${year}.` : ""}
+          </p>
         </div>
 
         <div className="ss-filters" style={{ marginTop: 16 }}>
           <nav className="ss-seg" aria-label="Distanse">
             {MAIN_DISTANCES.map((d) => (
-              <Link key={d.key} href={href({ category: d.key, year, gender })} className={`ss-seg-btn${category === d.key ? " active" : ""}`} aria-current={category === d.key ? "page" : undefined}>
+              <Link key={d.key} href={href({ category: d.key, year, gender, klasse })} className={`ss-seg-btn${category === d.key ? " active" : ""}`} aria-current={category === d.key ? "page" : undefined}>
                 {d.short}
               </Link>
             ))}
           </nav>
           <nav className="ss-seg" aria-label="Kjønn">
             {(["M", "F"] as const).map((g) => (
-              <Link key={g} href={href({ category, year, gender: g })} className={`ss-seg-btn${gender === g ? " active" : ""}`} aria-current={gender === g ? "page" : undefined}>
+              <Link key={g} href={href({ category, year, gender: g, klasse })} className={`ss-seg-btn${gender === g ? " active" : ""}`} aria-current={gender === g ? "page" : undefined}>
                 {g === "M" ? "Herrer" : "Damer"}
               </Link>
             ))}
           </nav>
           <nav className="ss-seg" aria-label="År">
             {years.map((y) => (
-              <Link key={y} href={href({ category, year: y, gender })} className={`ss-seg-btn${year === y ? " active" : ""}`} aria-current={year === y ? "page" : undefined}>
+              <Link key={y} href={href({ category, year: y, gender, klasse })} className={`ss-seg-btn${year === y ? " active" : ""}`} aria-current={year === y ? "page" : undefined}>
                 {y}
               </Link>
             ))}
           </nav>
         </div>
+        <nav className="ss-chips" aria-label="Aldersklasse" style={{ marginTop: 8 }}>
+          <Link href={href({ category, year, gender })} className={`ss-chip${!klasse ? " active" : ""}`} aria-current={!klasse ? "page" : undefined}>
+            Alle aldre
+          </Link>
+          {AGE_CLASS_KEYS.map((k) => (
+            <Link key={k} href={href({ category, year, gender, klasse: k })} className={`ss-chip${klasse === k ? " active" : ""}`} aria-current={klasse === k ? "page" : undefined}>
+              {ageClassByKey(k, gender)!.label}
+            </Link>
+          ))}
+        </nav>
 
         <section className="ss-section">
           <div className="ss-card">

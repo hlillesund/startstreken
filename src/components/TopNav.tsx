@@ -12,6 +12,8 @@ const LINKS = [
   { href: "/lop", label: "Løp", hint: "Alle løp og resultater", match: (p: string) => p.startsWith("/lop") },
   { href: "/utovere/topp100", label: "Topplister", hint: "Topp 100", match: (p: string) => p.startsWith("/utovere/topp100") || p.startsWith("/utovere/ranking") },
   { href: "/utovere/sammenlign", label: "Sammenlign", hint: "Opptil fire løpere", match: (p: string) => p.startsWith("/utovere/sammenlign") },
+  { href: "/klubber", label: "Klubber", hint: "Klubbene og deres løpere", match: (p: string) => p.startsWith("/klubber") },
+  { href: "/hvor-havner-jeg", label: "Hvor havner jeg?", hint: "Plasser tiden din", match: (p: string) => p.startsWith("/hvor-havner-jeg") },
 ];
 
 const nf = new Intl.NumberFormat("nb-NO");

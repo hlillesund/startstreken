@@ -1,7 +1,7 @@
 // Client-side loaders shared by the athlete profile and the compare view.
 import type { AthleteHit, AthleteResultRow } from "./types";
 
-export type Rank = { rank: number; total: number };
+export type Rank = { rank: number; total: number; cls?: { key: string; label: string; rank: number; total: number } };
 export type RankMap = Record<string, Rank | null>;
 
 export async function fetchAthlete(id: string): Promise<AthleteHit | null> {

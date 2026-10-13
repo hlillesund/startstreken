@@ -34,7 +34,7 @@ function SearchView({ initialQuery, onSelect }: { initialQuery: string; onSelect
     <>
       <div className="ss-container">
         <div className="ss-pagehead">
-          <h1 className="ss-h1">Utøvere</h1>
+          <h1 className="ss-h1">Finn <em>utøvere</em></h1>
           <p className="ss-sub">Søk blant alle løpere i databasen – se rekorder, plasseringer og utvikling.</p>
         </div>
         <div style={{ marginTop: 16, maxWidth: 720 }}>

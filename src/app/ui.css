@@ -257,7 +257,7 @@ body {
 .ss-hero-meta .ss-scrollhint { margin-left: auto; display: inline-flex; align-items: center; gap: 8px; }
 .ss-wordmark { position: relative; z-index: 1; display: block; margin: 8px 0 0; font-size: 13.1vw; font-weight: 500; line-height: 0.82; letter-spacing: -0.06em; text-transform: uppercase; white-space: nowrap; text-align: center; user-select: none; }
 /* each letter carries the same vertical gradient, so they can move on their own */
-.ss-wordmark > span { display: inline-block; padding-bottom: .04em; background: linear-gradient(180deg, #0e0e0e 0%, #1c1318 40%, #4a2238 100%); -webkit-background-clip: text; background-clip: text; color: transparent;
+.ss-wordmark > span { display: inline-block; padding-bottom: .04em; background: linear-gradient(180deg, #2a1c24 0%, #5c2c48 40%, #b8508e 100%); -webkit-background-clip: text; background-clip: text; color: transparent;
   animation: ss-letter 1.2s var(--ss-ease) both; animation-delay: calc(420ms + var(--i, 0) * 55ms); }
 /* the wordmark lifts and fades as the page scrolls (where scroll timelines exist) */
 @supports (animation-timeline: scroll()) {
@@ -706,7 +706,9 @@ a.ss-result:hover { background: var(--ss-surface-2); }
 .ss-ap-stat-label { font-size: 13px; color: var(--ss-fg-3); }
 .ss-ap-stat-val { margin-top: 14px; font-size: 40px; font-weight: 500; letter-spacing: -0.05em; line-height: 1; font-variant-numeric: tabular-nums; }
 .ss-ap-stat-sub { margin-top: 8px; font-size: 13px; color: var(--ss-fg-3); }
-@media (min-width: 768px) { .ss-ap-stats { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; margin-top: 40px; } .ss-ap-stat { padding: 24px 26px; border-radius: var(--ss-radius-lg); } .ss-ap-stat-val { font-size: 56px; margin-top: 22px; } }
+.ss-nowrap { white-space: nowrap; }
+.ss-ap-stat-ev { display: block; margin-top: 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+@media (min-width: 768px) { .ss-ap-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; margin-top: 40px; } .ss-ap-stat { padding: 24px 26px; border-radius: var(--ss-radius-lg); } .ss-ap-stat-val { font-size: 56px; margin-top: 22px; } }
 
 .ss-ap-section { padding-top: 56px; }
 .ss-ap-section > .ss-h2 { margin-bottom: 18px; }

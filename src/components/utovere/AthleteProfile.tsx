@@ -6,7 +6,7 @@ import { ArrowLeft, Check, ChevronRight, GitCompareArrows, Share2 } from "lucide
 import CountUp from "@/components/ui/CountUp";
 import type { AthleteHit, AthleteResultRow } from "./types";
 import { yearOf, type RankMap } from "./data";
-import { MAIN_DISTANCES, distanceMeters, formatDateShort, formatGap, formatPace, formatTime, mostCommon } from "./utils";
+import { MAIN_DISTANCES, distanceLabel, distanceMeters, formatDateShort, formatGap, formatPace, formatTime, mostCommon } from "./utils";
 import { careerSummary, distanceMix, formatTopPercent, highlights, predictions, racesPerYear, seasonBests, topPercent } from "./insights";
 
 const YEAR = new Date().getFullYear();
@@ -24,6 +24,17 @@ function Stat({ label, children, sub }: { label: string; children: React.ReactNo
       {sub && <div className="ss-ap-stat-sub">{sub}</div>}
     </div>
   );
+}
+
+function sinceText(dateStr: string) {
+  const days = Math.floor((Date.now() - new Date(dateStr).getTime()) / 86400000);
+  if (days <= 0) return "i dag";
+  if (days === 1) return "i går";
+  if (days < 14) return `${days} dager siden`;
+  if (days < 60) return `${Math.round(days / 7)} uker siden`;
+  if (days < 365) return `${Math.round(days / 30.4)} mnd siden`;
+  const y = Math.floor(days / 365);
+  return y === 1 ? "1 år siden" : `${y} år siden`;
 }
 
 /* ── Season bests as horizontal bars (reads well on a phone) ── */
@@ -146,6 +157,10 @@ export default function AthleteProfile({
   const perYear = useMemo(() => racesPerYear(results), [results]);
   const mix = useMemo(() => distanceMix(results), [results]);
   const club = useMemo(() => mostCommon(results.map((r) => r.club)), [results]);
+  const lastRace = useMemo(
+    () => results.filter((r) => r.start_date).sort((a, b) => b.start_date!.localeCompare(a.start_date!))[0] ?? null,
+    [results]
+  );
 
   const focus = useMemo(() => {
     const sb = fastest(rows.filter((r) => yearOf(r) === YEAR));
@@ -221,18 +236,28 @@ export default function AthleteProfile({
 
       {loading ? (
         <div className="ss-ap-stats">
-          {[0, 1, 2, 3].map((i) => <div key={i} className="ss-skel" style={{ height: 120, borderRadius: 22 }} />)}
+          {[0, 1].map((i) => <div key={i} className="ss-skel" style={{ height: 120, borderRadius: 22 }} />)}
         </div>
       ) : results.length === 0 ? (
         <div className="ss-card ss-empty" style={{ margin: "24px 0 48px" }}>Ingen resultater registrert for denne utøveren ennå.</div>
       ) : (
         <>
-          {/* ── Career in four numbers ── */}
+          {/* ── Career and latest race ── */}
           <section className="ss-ap-stats ss-reveal ss-stagger" aria-label="Nøkkeltall">
             <Stat label="Løp" sub={`${summary.racesThisYear} i ${YEAR}`}><CountUp value={summary.races} /></Stat>
-            <Stat label="Kilometer" sub="på standarddistanser"><CountUp value={summary.km} /></Stat>
-            <Stat label="Pallplasser" sub={`${summary.top10} topp 10`}><CountUp value={summary.podiums} /></Stat>
-            <Stat label="Aktiv siden" sub={`${summary.seasons} ${summary.seasons === 1 ? "sesong" : "sesonger"}`}>{summary.firstYear ?? "—"}</Stat>
+            {lastRace && (
+              <Stat
+                label="Siste løp"
+                sub={
+                  <>
+                    {distanceLabel(lastRace.distance_category)} · <span className="ss-nowrap">{sinceText(lastRace.start_date!)}</span>
+                    <span className="ss-ap-stat-ev">{lastRace.event_name}</span>
+                  </>
+                }
+              >
+                {formatTime(lastRace.time_ms)}
+              </Stat>
+            )}
           </section>
 
           {/* ── Records ── */}

@@ -5,6 +5,7 @@ import "./globals.css";
 import "./ui.css";
 import TopNav from "../components/TopNav";
 import ViewportFix from "../components/ViewportFix";
+import RevealObserver, { REVEAL_BOOT_SCRIPT } from "../components/ui/RevealObserver";
 
 // Switzer (Indian Type Foundry, free licence via Fontshare), self-hosted
 const switzer = localFont({
@@ -37,11 +38,16 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="nb">
+    <html lang="nb" suppressHydrationWarning>
+      <head>
+        {/* hide scroll-revealed content before first paint (removed again if JS never runs) */}
+        <script dangerouslySetInnerHTML={{ __html: REVEAL_BOOT_SCRIPT }} />
+      </head>
       <body className={`${switzer.variable} antialiased`}>
         {/* 🔑 iOS Safari viewport fix */}
         <ViewportFix />
 
+        <RevealObserver />
         <TopNav />
         <main>{children}</main>
         <Analytics />

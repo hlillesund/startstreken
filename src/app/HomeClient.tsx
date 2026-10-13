@@ -3,10 +3,11 @@
 import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import React, { useEffect, useState } from "react";
 import { ArrowDown, ArrowUpRight } from "lucide-react";
 import AthleteSearch from "@/components/AthleteSearch";
 import { LogoMark } from "@/components/ui/Logo";
+import CountUp from "@/components/ui/CountUp";
 import { MAIN_DISTANCES, dateParts, distanceLabel, formatTime, initials } from "@/components/utovere/utils";
 import { useRecentAthletes } from "@/lib/recent-athletes";
 import running from "../../public/running1.jpg";
@@ -17,6 +18,21 @@ type Entry = { athlete_id: string; display_name: string; best_time_ms: number; r
 type Boards = Record<string, { M: Entry[]; F: Entry[] }>;
 
 const nf = new Intl.NumberFormat("nb-NO");
+
+/** Splits text into words that rise in one after another. */
+function Words({ text, offset = 0 }: { text: string; offset?: number }) {
+  return (
+    <>
+      {text.split(" ").map((w, i, all) => (
+        <React.Fragment key={i}>
+          <span className="w" aria-hidden="true" style={{ "--i": i + offset } as React.CSSProperties}>{w}</span>
+          {i < all.length - 1 ? " " : null}
+        </React.Fragment>
+      ))}
+    </>
+  );
+}
+
 const BIG: Record<string, string> = { "5K": "5K", "10K": "10K", HM: "21K", M: "42K" };
 
 function useJson<T>(url: string, pick: (d: unknown) => T | null) {
@@ -39,7 +55,7 @@ function useJson<T>(url: string, pick: (d: unknown) => T | null) {
 }
 
 /* ── Top lists: one large card per distance ────────────── */
-function DistCard({ dist, data, year }: { dist: (typeof MAIN_DISTANCES)[number]; data?: { M: Entry[]; F: Entry[] }; year: number }) {
+function DistCard({ dist, data, year, delay = 0 }: { dist: (typeof MAIN_DISTANCES)[number]; data?: { M: Entry[]; F: Entry[] }; year: number; delay?: number }) {
   const list = (g: "M" | "F", title: string) => (
     <div>
       <div className="ss-dist-list-title">{title}</div>
@@ -57,7 +73,7 @@ function DistCard({ dist, data, year }: { dist: (typeof MAIN_DISTANCES)[number];
     </div>
   );
   return (
-    <article className="ss-dist-card ss-reveal" data-big={BIG[dist.key]}>
+    <article className="ss-dist-card ss-reveal" data-big={BIG[dist.key]} style={{ "--d": `${delay}ms` } as React.CSSProperties}>
       <div className="ss-dist-card-top">
         <div className="ss-tags">
           <span className="ss-tag">Topp 3</span>
@@ -121,12 +137,12 @@ function Leaders({ boards, year }: { boards: Boards | null; year: number }) {
         </div>
         {cur ? (
           <>
-            <p className="ss-quote-text">
+            <p className="ss-quote-text" key={`t${i}`}>
               Raskest på {cur.d.label.toLowerCase()} blant {cur.g === "M" ? "herrene" : "damene"} i år er <b>{cur.e.display_name}</b> med{" "}
               <b>{formatTime(cur.e.best_time_ms)}</b>
               {cur.e.event_name ? <>, satt i {cur.e.event_name}.</> : "."}
             </p>
-            <div className="ss-quote-who">
+            <div className="ss-quote-who" key={`w${i}`}>
               <Link href={`/utovere?athleteId=${cur.e.athlete_id}`} className="ss-quote-person">
                 <span className="ss-avatar ss-avatar--brand">{initials(cur.e.display_name)}</span>
                 <span style={{ minWidth: 0 }}>
@@ -196,24 +212,33 @@ export default function HomeClient() {
         <div className="ss-container">
           <div className="ss-hero-inner">
             <div className="ss-hero-copy">
-              <h1 className="ss-hero-title">
-                Alle løpsresultater i Norge. <em>Ett søk unna.</em>
+              <h1 className="ss-hero-title" aria-label="Alle løpsresultater i Norge. Ett søk unna.">
+                <Words text="Alle løpsresultater i Norge." />{" "}
+                <em><Words text="Ett søk unna." offset={4} /></em>
               </h1>
+              <div className="ss-intro" style={{ "--d": "520ms" } as React.CSSProperties}>
               <AthleteSearch
                 size="lg"
                 placeholder="Søk etter utøver…"
                 onSelect={(h) => router.push(`/utovere?athleteId=${h.id}`)}
                 onSubmit={(q) => router.push(`/utovere?q=${encodeURIComponent(q)}`)}
               />
+              </div>
             </div>
           </div>
-          <div className="ss-hero-meta">
+          <div className="ss-hero-meta ss-intro" style={{ "--d": "760ms" } as React.CSSProperties}>
             <span>Norges løpsdatabase</span>
-            <span><b>{n(stats?.athletes)}</b> utøvere</span>
-            <span className="ss-hide-sm"><b>{n(stats?.events)}</b> løp</span>
+            <span><b>{stats ? <CountUp value={stats.athletes} /> : "…"}</b> utøvere</span>
+            <span className="ss-hide-sm"><b>{stats ? <CountUp value={stats.events} /> : "…"}</b> løp</span>
             <span className="ss-scrollhint">Scroll for å utforske <ArrowDown size={14} /></span>
           </div>
-          <div className="ss-wordmark" aria-hidden="true">Startstreken</div>
+          <div className="ss-wordmark-wrap" aria-hidden="true">
+            <div className="ss-wordmark">
+              {"Startstreken".split("").map((ch, i) => (
+                <span key={i} style={{ "--i": i } as React.CSSProperties}>{ch}</span>
+              ))}
+            </div>
+          </div>
         </div>
       </section>
 
@@ -261,14 +286,14 @@ export default function HomeClient() {
         <section className="ss-section">
           <div className="ss-section-head">
             <div>
-              <h2 className="ss-h2">Årets <em>topplister</em></h2>
+              <h2 className="ss-h2 ss-reveal">Årets <em>topplister</em></h2>
               <p className="ss-sub">De raskeste herrene og damene på hver distanse i {year}, fra fullstendige resultatlister.</p>
             </div>
             <Link href="/utovere/topp100" className="ss-link">Se topp 100 <ArrowUpRight size={16} /></Link>
           </div>
           <div className="ss-dist-grid">
-            {MAIN_DISTANCES.map((d) => (
-              <DistCard key={d.key} dist={d} data={boards?.[d.key]} year={year} />
+            {MAIN_DISTANCES.map((d, i) => (
+              <DistCard key={d.key} dist={d} data={boards?.[d.key]} year={year} delay={(i % 2) * 120} />
             ))}
           </div>
         </section>
@@ -281,7 +306,7 @@ export default function HomeClient() {
         {/* ── Latest races ── */}
         <section className="ss-section">
           <div className="ss-section-head">
-            <h2 className="ss-h2">Siste <em>resultater</em></h2>
+            <h2 className="ss-h2 ss-reveal">Siste <em>resultater</em></h2>
             <Link href="/lop" className="ss-link">Alle løp <ArrowUpRight size={16} /></Link>
           </div>
           {!eventsDone ? (
@@ -291,7 +316,7 @@ export default function HomeClient() {
           ) : !events || events.length === 0 ? (
             <div className="ss-card ss-empty">Ingen løp å vise ennå.</div>
           ) : (
-            <div className="ss-rail">
+            <div className="ss-rail ss-reveal ss-stagger">
               {events.map((ev) => {
                 const dp = dateParts(ev.start_date);
                 return (
@@ -324,8 +349,8 @@ export default function HomeClient() {
       {/* ── What you can do (light band) ── */}
       <section className="ss-light ss-band" style={{ marginTop: 56 }}>
         <div className="ss-container">
-          <h2 className="ss-h2" style={{ textAlign: "center" }}>Alt om <em>løpene dine</em></h2>
-          <div className="ss-services">
+          <h2 className="ss-h2 ss-reveal" style={{ textAlign: "center" }}>Alt om <em>løpene dine</em></h2>
+          <div className="ss-services ss-reveal ss-stagger">
             {SERVICES.map((s) => (
               <Link key={s.href} href={s.href} className="ss-service">
                 <div className="ss-service-title">{s.title}</div>
@@ -342,9 +367,9 @@ export default function HomeClient() {
         {/* ── FAQ ── */}
         <section className="ss-section" style={{ paddingTop: 96 }}>
           <div className="ss-section-head">
-            <h2 className="ss-h2">Ofte stilte <em>spørsmål</em></h2>
+            <h2 className="ss-h2 ss-reveal">Ofte stilte <em>spørsmål</em></h2>
           </div>
-          <div className="ss-faq">
+          <div className="ss-faq ss-reveal ss-stagger">
             {FAQ.map((f, k) => (
               <details key={f.q} className="ss-faq-item" open={k === 0}>
                 <summary>{f.q}</summary>
@@ -356,7 +381,7 @@ export default function HomeClient() {
 
         {/* ── Call to action ── */}
         <section className="ss-section">
-          <div className="ss-cta">
+          <div className="ss-cta ss-reveal">
             <h2 className="ss-h2">Klar til å finne <em>tidene dine?</em></h2>
             <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
               <Link href="/utovere" className="ss-btn ss-btn--primary">Søk etter utøver</Link>

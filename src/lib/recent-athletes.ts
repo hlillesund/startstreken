@@ -41,6 +41,18 @@ export function addRecentAthlete(hit: AthleteHit) {
   }
 }
 
+/** Drops an id from the list (e.g. a profile that was merged into another). */
+export function removeRecentAthlete(id: string) {
+  try {
+    const list = getRecentAthletes();
+    if (!list.some((a) => a.id === id)) return;
+    window.localStorage.setItem(KEY, JSON.stringify(list.filter((a) => a.id !== id)));
+    window.dispatchEvent(new Event(EVENT));
+  } catch {
+    // storage unavailable – ignore
+  }
+}
+
 // Snapshot cache so useSyncExternalStore gets a stable reference
 let lastRaw: string | null | undefined;
 let lastVal: AthleteHit[] = EMPTY;

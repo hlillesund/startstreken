@@ -7,7 +7,7 @@ import AthleteProfile from "@/components/utovere/AthleteProfile";
 import TopLeaderboards from "@/components/utovere/TopLeaderBoards";
 import type { AthleteHit, AthleteResultRow } from "@/components/utovere/types";
 import { fetchAthlete, fetchRanks, fetchResults, refreshFromSource, type RankMap } from "@/components/utovere/data";
-import { addRecentAthlete } from "@/lib/recent-athletes";
+import { addRecentAthlete, removeRecentAthlete } from "@/lib/recent-athletes";
 
 const YEAR = new Date().getFullYear();
 
@@ -87,8 +87,18 @@ export default function UtoverePage() {
     setLoading(true);
     window.scrollTo({ top: 0 });
 
-    const [full, res] = await Promise.all([fetchAthlete(id), fetchResults(id)]);
+    const [full, first] = await Promise.all([fetchAthlete(id), fetchResults(id)]);
     if (!alive()) return;
+    let res = first;
+    // the profile was merged into another one: continue there
+    if (full && full.id !== id) {
+      removeRecentAthlete(id);
+      id = full.id;
+      setAthleteId(id);
+      window.history.replaceState(null, "", `/utovere?athleteId=${id}`);
+      res = await fetchResults(id);
+      if (!alive()) return;
+    }
     if (!full && !hint) {
       setNotFound(true);
       setLoading(false);

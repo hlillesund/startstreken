@@ -1,5 +1,6 @@
 "use client";
 
+import dynamic from "next/dynamic";
 import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -11,6 +12,8 @@ import CountUp from "@/components/ui/CountUp";
 import { MAIN_DISTANCES, dateParts, distanceLabel, formatTime, initials } from "@/components/utovere/utils";
 import { useRecentAthletes } from "@/lib/recent-athletes";
 import running from "../../public/running1.jpg";
+
+const HeroGradient = dynamic(() => import("@/components/ui/HeroGradient"), { ssr: false });
 
 type Stats = { athletes: number; results: number; events: number; events_year: number; year: number };
 type RecentEvent = { id: string; name: string; start_date: string | null; location: string | null; finishers: number; categories: string[] };
@@ -233,6 +236,7 @@ export default function HomeClient() {
             <span className="ss-scrollhint">Scroll for å utforske <ArrowDown size={14} /></span>
           </div>
           <div className="ss-wordmark-wrap" aria-hidden="true">
+            <HeroGradient />
             <div className="ss-wordmark">
               {"Startstreken".split("").map((ch, i) => (
                 <span key={i} style={{ "--i": i } as React.CSSProperties}>{ch}</span>

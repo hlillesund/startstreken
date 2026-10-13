@@ -5,6 +5,7 @@
 // refreshed within SEASON_TTL, or right away via touchSeason().
 import { revalidateTag, unstable_cache } from "next/cache";
 import { prisma } from "@/lib/prisma";
+import { ageClassFor, birthRange } from "@/lib/age-class";
 
 export const SEASON_TAG = "season";
 const SEASON_TTL = 1800; // seconds
@@ -44,7 +45,14 @@ type TopRow = {
   start_date: Date | null;
 };
 
-async function loadTop(category: SeasonCategory, year: number, gender: "M" | "F", limit: number): Promise<TopEntry[]> {
+async function loadTop(
+  category: SeasonCategory,
+  year: number,
+  gender: "M" | "F",
+  limit: number,
+  bornFrom: number | null = null,
+  bornTo: number | null = null
+): Promise<TopEntry[]> {
   const { from, to } = yearRange(year);
   const rows = await prisma.$queryRaw<TopRow[]>`
     WITH best AS (
@@ -67,6 +75,8 @@ async function loadTop(category: SeasonCategory, year: number, gender: "M" | "F"
         AND e.start_date >= ${from}
         AND e.start_date < ${to}
         AND a.gender = ${gender}
+        AND (${bornFrom}::int IS NULL OR a.birth_year >= ${bornFrom}::int)
+        AND (${bornTo}::int IS NULL OR a.birth_year <= ${bornTo}::int)
       ORDER BY r.athlete_id, r.time_ms ASC
     ),
     ranked AS (
@@ -95,6 +105,11 @@ export const getTopList = unstable_cache(loadTop, ["season-top-v1"], { revalidat
 
 export type Leaderboards = Record<SeasonCategory, { M: TopEntry[]; F: TopEntry[] }>;
 
+/** Top 100 within an age class (birth years `bornFrom`–`bornTo`). */
+export function getTop100Class(category: SeasonCategory, year: number, gender: "M" | "F", bornFrom: number, bornTo: number) {
+  return getTopList(category, year, gender, 100, bornFrom, bornTo);
+}
+
 /** Top 100 per gender, shared by Topp 100 and the leaderboards so both hit the same cache entry. */
 export function getTop100(category: SeasonCategory, year: number, gender: "M" | "F") {
   return getTopList(category, year, gender, 100);
@@ -111,6 +126,37 @@ export async function getLeaderboards(year: number, limit = 5): Promise<Leaderbo
   );
   return out;
 }
+
+/* ── The whole field ───────────────────────────────────────────────────── */
+
+/**
+ * Every athlete's season best for one distance and gender, fastest first, with
+ * birth year alongside (parallel arrays keep the cache entry small).
+ * Used for age-class ranks and «Hvor havner jeg?».
+ */
+export type Field = { t: number[]; b: (number | null)[] };
+
+async function loadField(category: SeasonCategory, year: number, gender: "M" | "F"): Promise<Field> {
+  const { from, to } = yearRange(year);
+  const rows = await prisma.$queryRaw<{ best: number; birth_year: number | null }[]>`
+    SELECT MIN(r.time_ms)::int AS best, a.birth_year
+    FROM results r
+    JOIN races ra ON ra.id = r.race_id
+    JOIN events e ON e.id = ra.event_id
+    JOIN athletes a ON a.id = r.athlete_id
+    WHERE r.distance_category = ${category}
+      AND NOT (r.raw ? 'ArrangementUID')
+      AND r.time_ms > 0
+      AND e.start_date >= ${from}
+      AND e.start_date < ${to}
+      AND a.gender = ${gender}
+    GROUP BY r.athlete_id, a.birth_year
+    ORDER BY best ASC
+  `;
+  return { t: rows.map((r) => Number(r.best)), b: rows.map((r) => r.birth_year) };
+}
+
+export const getField = unstable_cache(loadField, ["season-field-v1"], { revalidate: SEASON_TTL, tags: [SEASON_TAG] });
 
 /* ── National ranks ────────────────────────────────────────────────────── */
 
@@ -156,7 +202,25 @@ function countBelow(sorted: number[], v: number) {
   return lo;
 }
 
-export type AthleteRanks = Record<SeasonCategory, { rank: number; total: number } | null>;
+export type ClassRank = { key: string; label: string; rank: number; total: number };
+export type AthleteRanks = Record<SeasonCategory, { rank: number; total: number; cls?: ClassRank } | null>;
+
+/** Rank within the athlete's age class (competition rank on season best). */
+async function classRank(cat: SeasonCategory, year: number, gender: "M" | "F", birthYear: number, best: number): Promise<ClassRank | null> {
+  const cls = ageClassFor(birthYear, gender, year);
+  if (!cls) return null;
+  const { from, to } = birthRange(cls, year);
+  const field = await getField(cat, year, gender);
+  let faster = 0, total = 0, self = false;
+  for (let i = 0; i < field.t.length; i++) {
+    const b = field.b[i];
+    if (b == null || b < from || b > to) continue;
+    total++;
+    if (field.t[i] < best) faster++;
+    else if (field.t[i] === best) self = true;
+  }
+  return { key: cls.key, label: cls.label, rank: faster + 1, total: self ? total : total + 1 };
+}
 
 /**
  * The athlete's national rank per distance for `year` (dense rank on season best,
@@ -165,7 +229,7 @@ export type AthleteRanks = Record<SeasonCategory, { rank: number; total: number 
  */
 export async function getAthleteRanks(athleteId: string, year: number): Promise<AthleteRanks> {
   const { from, to } = yearRange(year);
-  const [mine, season] = await Promise.all([
+  const [mine, season, who] = await Promise.all([
     prisma.$queryRaw<{ cat: string; best: number }[]>`
       SELECT r.distance_category AS cat, MIN(r.time_ms)::int AS best
       FROM results r
@@ -180,6 +244,7 @@ export async function getAthleteRanks(athleteId: string, year: number): Promise<
       GROUP BY r.distance_category
     `,
     getSeasonTimes(year),
+    prisma.athletes.findUnique({ where: { id: athleteId }, select: { gender: true, birth_year: true } }),
   ]);
 
   const out = Object.fromEntries(SEASON_CATEGORIES.map((c) => [c, null])) as AthleteRanks;
@@ -190,6 +255,18 @@ export async function getAthleteRanks(athleteId: string, year: number): Promise<
     const below = countBelow(s.times, best);
     const known = s.times[below] === best;
     out[cat] = { rank: below + 1, total: known ? s.total : s.total + 1 };
+  }
+
+  const gender = who?.gender === "M" || who?.gender === "F" ? who.gender : null;
+  if (gender && who?.birth_year) {
+    await Promise.all(
+      mine.map(async ({ cat, best }) => {
+        const r = isSeasonCategory(cat) ? out[cat] : null;
+        if (!r) return;
+        const cls = await classRank(cat as SeasonCategory, year, gender, who.birth_year!, best);
+        if (cls) r.cls = cls;
+      })
+    );
   }
   return out;
 }

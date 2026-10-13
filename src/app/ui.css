@@ -736,7 +736,10 @@ a.ss-result:hover { background: var(--ss-surface-2); }
 .ss-ap-pb-time { margin-top: auto; padding-top: 30px; font-size: 46px; font-weight: 500; letter-spacing: -0.055em; line-height: 1; font-variant-numeric: tabular-nums; }
 .ss-ap-pb-sub { margin-top: 10px; font-size: 14px; color: var(--ss-fg-2); }
 .ss-ap-pb-event { margin-top: 4px; font-size: 13px; color: var(--ss-fg-3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.ss-ap-pb-count { margin-top: 14px; font-size: 13px; color: var(--ss-fg-3); }
+.ss-ap-pb-count { display: flex; justify-content: space-between; gap: 8px; margin-top: 14px; font-size: 13px; color: var(--ss-fg-3); }
+.ss-ap-pb-cls { color: var(--ss-highlight); white-space: nowrap; }
+.ss-ap-pill--ghost { background: transparent; box-shadow: inset 0 0 0 1px rgba(240,104,183,.4); text-decoration: none; transition: background .2s; }
+.ss-ap-pill--ghost:hover { background: var(--ss-highlight-tint); }
 
 /* sticky distance switch */
 .ss-ap-focus-anchor { scroll-margin-top: calc(var(--ss-nav-h) - 4px); }
@@ -832,3 +835,68 @@ a.ss-result:hover { background: var(--ss-surface-2); }
 .ss-cmp-people > :nth-child(2), .ss-cmp-dists > :nth-child(2) { animation-delay: 80ms; }
 .ss-cmp-people > :nth-child(3), .ss-cmp-dists > :nth-child(3) { animation-delay: 160ms; }
 .ss-cmp-people > :nth-child(4), .ss-cmp-dists > :nth-child(4) { animation-delay: 240ms; }
+
+/* ── Clubs ─────────────────────────────────────────────── */
+.ss-club-tops { display: grid; gap: 8px; }
+@media (min-width: 768px) { .ss-club-tops { grid-template-columns: 1fr 1fr; gap: 12px; } }
+.ss-club-top { list-style: none; margin: 0 -8px; padding: 0; }
+.ss-club-top a { display: grid; grid-template-columns: 30px minmax(0, 1fr) auto; align-items: center; gap: 12px; padding: 10px 8px; border-radius: 12px; color: inherit; text-decoration: none; transition: background .2s; }
+.ss-club-top a:hover { background: var(--ss-surface-2); }
+.ss-club-top-who, .ss-club-top-t { display: flex; flex-direction: column; min-width: 0; }
+.ss-club-top-t { text-align: right; }
+.ss-rank-row--norank { grid-template-columns: minmax(0, 1fr) auto; }
+.ss-club-link { color: inherit; text-decoration: underline; text-decoration-color: var(--ss-fg-3); text-underline-offset: 3px; }
+.ss-club-link:hover { color: var(--ss-fg); }
+
+/* ── «Hvor havner jeg?» ────────────────────────────────── */
+.ss-place { display: grid; gap: 12px; padding: 16px 0 64px; }
+@media (min-width: 900px) { .ss-place { grid-template-columns: minmax(0, 400px) minmax(0, 1fr); align-items: start; gap: 16px; } .ss-place-form { position: sticky; top: calc(var(--ss-nav-h) + 8px); } }
+.ss-place-form { display: grid; gap: 18px; padding: 18px; }
+@media (min-width: 768px) { .ss-place-form { padding: 24px; } }
+.ss-place-form .ss-seg { width: 100%; }
+.ss-place-form .ss-seg-btn { flex: 1; justify-content: center; }
+.ss-place-time { display: flex; align-items: flex-end; gap: 6px; margin: 0; padding: 0; border: 0; min-width: 0; }
+.ss-place-time legend { padding: 0; margin-bottom: 10px; font-size: 13px; color: var(--ss-fg-3); }
+.ss-place-unit { display: flex; align-items: baseline; gap: 4px; }
+.ss-place-unit input { width: 2.2ch; padding: 0; border: 0; border-bottom: 1px solid var(--ss-surface-3); background: transparent; color: var(--ss-fg); font: 500 52px/1.05 var(--ss-font); letter-spacing: -0.05em; font-variant-numeric: tabular-nums; text-align: center; outline: none; transition: border-color .2s; }
+.ss-place-unit input:focus { border-color: var(--ss-highlight); }
+.ss-place-unit span { font-size: 14px; color: var(--ss-fg-3); margin-right: 6px; }
+.ss-place-pace { margin-left: auto; padding-bottom: 8px; font-size: 14px; color: var(--ss-fg-3); white-space: nowrap; }
+.ss-place-row { display: flex; gap: 8px; align-items: stretch; }
+.ss-place-row .ss-seg { flex: 1; width: auto; }
+.ss-place-born { display: flex; align-items: center; gap: 8px; padding: 0 12px; border-radius: 14px; background: var(--ss-surface-2); font-size: 13px; color: var(--ss-fg-3); }
+.ss-place-born input { width: 4.4ch; border: 0; background: transparent; color: var(--ss-fg); font: 500 16px/1 var(--ss-font); outline: none; }
+.ss-place-born input::placeholder { color: var(--ss-fg-3); }
+.ss-place-out { display: grid; gap: 12px; min-width: 0; transition: opacity .25s; }
+.ss-place-out.is-loading { opacity: .55; }
+.ss-place-hero { padding: 22px 20px 20px; animation: ss-in-up .7s var(--ss-ease) both; }
+@media (min-width: 768px) { .ss-place-hero { padding: 30px 30px 26px; } }
+.ss-place-kicker { font-size: 13px; color: var(--ss-fg-3); }
+.ss-place-big { margin-top: 14px; font-size: clamp(34px, 9vw, 64px); font-weight: 500; letter-spacing: -0.05em; line-height: 1; color: var(--ss-fg-3); }
+.ss-place-big b { font-weight: 500; color: var(--ss-highlight); }
+.ss-place-sub { margin-top: 10px; font-size: 16px; color: var(--ss-fg-2); }
+.ss-place-hist { display: flex; align-items: flex-end; gap: 3px; height: 96px; margin-top: 26px; }
+.ss-place-hist i { flex: 1; min-width: 0; border-radius: 3px 3px 1px 1px; background: var(--ss-surface-3); transform-origin: bottom; animation: ss-bar-up .8s var(--ss-ease) both; }
+.ss-place-hist i.is-faster { background: rgba(255,255,255,.55); }
+.ss-place-hist i.is-you { background: var(--ss-highlight); }
+@keyframes ss-bar-up { from { transform: scaleY(0); } }
+.ss-place-axis { display: flex; justify-content: space-between; gap: 8px; margin-top: 8px; font-size: 12px; color: var(--ss-fg-3); font-variant-numeric: tabular-nums; }
+.ss-place-marks { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin: 22px 0 0; }
+.ss-place-marks div { padding: 12px; border-radius: 14px; background: var(--ss-surface-2); }
+.ss-place-marks dt { font-size: 12px; color: var(--ss-fg-3); }
+.ss-place-marks dd { margin: 6px 0 0; font-size: 18px; font-weight: 500; letter-spacing: -0.03em; font-variant-numeric: tabular-nums; }
+.ss-place-class { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 20px; animation: ss-in-up .7s var(--ss-ease) .08s both; }
+.ss-place-mid { margin-top: 8px; font-size: 26px; font-weight: 500; letter-spacing: -0.04em; }
+.ss-place-mid em { font-style: normal; color: var(--ss-fg-3); }
+.ss-place-badge { flex-shrink: 0; padding: 10px 14px; border-radius: 14px; background: rgba(240,104,183,.14); color: var(--ss-highlight); font-size: 15px; font-weight: 500; white-space: nowrap; }
+.ss-place-races { animation: ss-in-up .7s var(--ss-ease) .16s both; }
+.ss-place-h { margin: 18px 0 12px; font-size: 22px; font-weight: 500; letter-spacing: -0.03em; }
+.ss-place-hint { margin: 4px 4px 0; font-size: 13px; color: var(--ss-fg-3); }
+
+/* front-page teaser for «Hvor havner jeg?» */
+.ss-place-cta { display: grid; gap: 28px; padding: 28px 22px; background: radial-gradient(120% 140% at 100% 0%, rgba(240,104,183,.16), transparent 55%), var(--ss-surface); }
+@media (min-width: 900px) { .ss-place-cta { grid-template-columns: 1.1fr 1fr; align-items: center; gap: 48px; padding: 56px; } }
+.ss-place-cta-ex { display: grid; gap: 8px; }
+.ss-place-cta-chip { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 18px 20px; border-radius: 18px; background: var(--ss-surface-2); color: var(--ss-fg); text-decoration: none; font-size: 17px; font-weight: 500; letter-spacing: -0.02em; transition: background .2s, transform .2s; }
+.ss-place-cta-chip:hover { background: var(--ss-surface-3); transform: translateX(4px); }
+.ss-place-cta-chip svg { color: var(--ss-fg-3); flex-shrink: 0; }

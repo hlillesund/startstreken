@@ -163,6 +163,18 @@ export async function runDedupe({ dryRun = false, budgetMs = 240_000, sample = 4
     uncertain: 0, blocked: 0, failed: 0, stoppedEarly: false, examples: [], uncertainExamples: [],
   };
 
+  // A short name that fits several longer ones ("Ingrid Nerland" → "Ingrid Syltern
+  // Nerland", "Ingrid Halle Nerland") is settled by club: if exactly one of them
+  // shares a club with it, that one is the match.
+  const shareClub = (x: string, y: string) => [...profiles.get(x)!.clubs].some((c) => profiles.get(y)!.clubs.has(c));
+  const subsetsOf = new Map<string, Pair[]>();
+  for (const p of pairs) if (p.kind === "subset") (subsetsOf.get(p.a) ?? subsetsOf.set(p.a, []).get(p.a)!).push(p);
+  for (const group of subsetsOf.values()) {
+    if (group.length < 2) continue;
+    const withClub = group.filter((p) => shareClub(p.a, p.b));
+    if (withClub.length === 1) withClub[0].ambiguous = false;
+  }
+
   // most certain first: plain spelling and order before missing middle names
   const rank: Record<PairKind, number> = { spelling: 0, order: 1, subset: 2 };
   const judged = pairs

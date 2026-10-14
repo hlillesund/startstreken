@@ -107,7 +107,8 @@ export function judge(a: Profile, b: Profile, kind: PairKind, tokens: number, am
       merge = tokens >= 3 ? birthSame || birthNear || support >= 1 : birthSame || (!(a.birthYear && b.birthYear) && support >= 1.5);
     } else {
       // a missing middle name is where namesakes hide: demand birth year plus more
-      merge = !ambiguous && birthSame && support >= 3;
+      // (without a birth year on one side, club and level must both match)
+      merge = !ambiguous && ((birthSame && support >= 3) || (!(a.birthYear && b.birthYear) && club && level === "match"));
     }
   }
   return { merge, maybe: !merge && !conflict && support >= 1, reasons };

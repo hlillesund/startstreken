@@ -71,7 +71,17 @@ function overlaps<T>(a: Set<T>, b: Set<T>) {
  * @param tokens  number of name parts in the longer name
  * @param ambiguous the shorter name also fits other profiles (only for "subset")
  */
-export function judge(a: Profile, b: Profile, kind: PairKind, tokens: number, ambiguous = false, foldA = "", foldB = ""): Verdict {
+export function judge(
+  a: Profile,
+  b: Profile,
+  kind: PairKind,
+  tokens: number,
+  ambiguous = false,
+  foldA = "",
+  foldB = "",
+  /** the shorter name has a very common surname (Hansen, Olsen, Lien …) */
+  commonSurname = false
+): Verdict {
   const reasons: string[] = [];
 
   // Hard stops
@@ -108,7 +118,8 @@ export function judge(a: Profile, b: Profile, kind: PairKind, tokens: number, am
     } else {
       // a missing middle name is where namesakes hide: demand birth year plus more
       // (without a birth year on one side, club and level must both match)
-      merge = !ambiguous && ((birthSame && support >= 3) || (!(a.birthYear && b.birthYear) && club && level === "match"));
+      // A common surname may already hold several people, so it needs the birth year.
+      merge = !ambiguous && ((birthSame && support >= 3) || (!commonSurname && !(a.birthYear && b.birthYear) && club && level === "match"));
     }
   }
   return { merge, maybe: !merge && !conflict && support >= 1, reasons };

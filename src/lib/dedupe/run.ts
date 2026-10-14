@@ -128,7 +128,14 @@ async function loadProfiles(rows: Row[]): Promise<Map<string, Profile>> {
   return profiles;
 }
 
-export async function runDedupe({ dryRun = false, budgetMs = 240_000 } = {}): Promise<DedupeReport> {
+/** Readability of a written name: Norwegian letters and accents count for it, sloppy punctuation against. */
+function tidiness(name: string) {
+  const accents = (name.normalize("NFD").match(/[\u0300-\u036f]/g) ?? []).length + (name.match(/[æøåÆØÅ]/g) ?? []).length;
+  const mess = (name.match(/\?|\.\S|\s-|-\s|\/|\s{2,}|^[^a-zæøå]*$/g) ?? []).length;
+  return accents - 2 * mess;
+}
+
+export async function runDedupe({ dryRun = false, budgetMs = 240_000, sample = 40 } = {}): Promise<DedupeReport> {
   const started = Date.now();
   await ensureDedupeTables();
 
@@ -152,7 +159,10 @@ export async function runDedupe({ dryRun = false, budgetMs = 240_000 } = {}): Pr
   // most certain first: plain spelling and order before missing middle names
   const rank: Record<PairKind, number> = { spelling: 0, order: 1, subset: 2 };
   const judged = pairs
-    .map((p) => ({ p, v: judge(profiles.get(p.a)!, profiles.get(p.b)!, p.kind, p.tokens, p.ambiguous) }))
+    .map((p) => {
+      const A = profiles.get(p.a)!, B = profiles.get(p.b)!;
+      return { p, v: judge(A, B, p.kind, p.tokens, p.ambiguous, foldName(A.norm), foldName(B.norm)) };
+    })
     .sort((x, y) => rank[x.p.kind] - rank[y.p.kind]);
 
   const touched = new Set<string>();
@@ -160,7 +170,7 @@ export async function runDedupe({ dryRun = false, budgetMs = 240_000 } = {}): Pr
     if (!v.merge) {
       if (v.maybe) {
         report.uncertain++;
-        if (report.uncertainExamples.length < 40) {
+        if (report.uncertainExamples.filter((e) => e.kind === p.kind).length < sample) {
           report.uncertainExamples.push({ a: byId.get(p.a)!.display_name, b: byId.get(p.b)!.display_name, kind: p.kind, reasons: v.reasons });
         }
       } else report.blocked++;
@@ -180,8 +190,8 @@ export async function runDedupe({ dryRun = false, budgetMs = 240_000 } = {}): Pr
       p.kind === "subset"
         ? nameTokens(A.norm).length > nameTokens(B.norm).length ? A : B
         : p.kind === "spelling"
-          ? // "Løchen" over "Lochen": the variant with Norwegian letters is the written one
-            (/[æøå]/i.test(A.name) === /[æøå]/i.test(B.name) ? kept : /[æøå]/i.test(A.name) ? A : B)
+          ? // "Løchen" over "Lochen", "R. Davies" over "R.Davies"
+            (tidiness(A.name) === tidiness(B.name) ? kept : tidiness(A.name) > tidiness(B.name) ? A : B)
           : (() => {
             const d = orderScore(A.name, stats) - orderScore(B.name, stats);
             return Math.abs(d) > 0.05 ? (d > 0 ? A : B) : kept;
@@ -191,7 +201,7 @@ export async function runDedupe({ dryRun = false, budgetMs = 240_000 } = {}): Pr
 
     touched.add(p.a);
     touched.add(p.b);
-    if (report.examples.length < 60) report.examples.push({ kept: name, removed: best === kept ? removed.name : kept.name, kind: p.kind, reasons: v.reasons });
+    if (report.examples.filter((e) => e.kind === p.kind).length < sample) report.examples.push({ kept: name, removed: best === kept ? removed.name : kept.name, kind: p.kind, reasons: v.reasons });
 
     if (dryRun) {
       report.wouldMerge++;

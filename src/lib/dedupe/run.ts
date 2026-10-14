@@ -9,7 +9,8 @@ import { judge, type PairKind, type Profile } from "./match";
 import { ensureDedupeTables, mergeMany, type MergeInput } from "./merge";
 
 const METERS: Record<string, number> = { "5K": 5000, "10K": 10000, HM: 21097.5, M: 42195 };
-const MAX_GROUP = 25; // larger groups are common names; too risky to pair up blindly
+const MAX_GROUP = 25;
+const COMMON_SURNAME = 300; // athletes with this surname: Hansen, Olsen, Lien and the like // larger groups are common names; too risky to pair up blindly
 
 type Row = { id: string; display_name: string; display_name_norm: string; gender: string | null; birth_year: number | null };
 type Pair = { a: string; b: string; kind: PairKind; tokens: number; ambiguous: boolean };
@@ -180,7 +181,9 @@ export async function runDedupe({ dryRun = false, budgetMs = 240_000, sample = 4
   const judged = pairs
     .map((p) => {
       const A = profiles.get(p.a)!, B = profiles.get(p.b)!;
-      return { p, v: judge(A, B, p.kind, p.tokens, p.ambiguous, foldName(A.norm), foldName(B.norm)) };
+      const t = nameTokens(A.norm);
+      const common = p.kind === "subset" && (stats.last.get(t[t.length - 1]) ?? 0) > COMMON_SURNAME;
+      return { p, v: judge(A, B, p.kind, p.tokens, p.ambiguous, foldName(A.norm), foldName(B.norm), common) };
     })
     .sort((x, y) => rank[x.p.kind] - rank[y.p.kind]);
 
@@ -203,7 +206,12 @@ export async function runDedupe({ dryRun = false, budgetMs = 240_000, sample = 4
     const [kept, removed] = A.results >= B.results ? [A, B] : [B, A];
     const best =
       p.kind === "subset"
-        ? nameTokens(A.norm).length > nameTokens(B.norm).length ? A : B
+        ? // the fuller name, unless its extra part is a repeat ("Magnus Magnus Nyhammer")
+          (() => {
+            const [long, short] = nameTokens(A.norm).length > nameTokens(B.norm).length ? [A, B] : [B, A];
+            const t = nameTokens(long.norm);
+            return new Set(t).size < t.length ? short : long;
+          })()
         : p.kind === "spelling"
           ? // "Løchen" over "Lochen", "R. Davies" over "R.Davies"
             (tidiness(A.name) === tidiness(B.name) ? kept : tidiness(A.name) > tidiness(B.name) ? A : B)

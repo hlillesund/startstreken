@@ -6,7 +6,7 @@ import { clubSlug } from "@/lib/club-slug";
 import { normName, prettyName } from "@/lib/import/text";
 import { baseNorm, foldName, nameTokens, orderScore, orderStats, tokenKey } from "./names";
 import { judge, type PairKind, type Profile } from "./match";
-import { ensureDedupeTables, mergeAthletes } from "./merge";
+import { ensureDedupeTables, mergeMany, type MergeInput } from "./merge";
 
 const METERS: Record<string, number> = { "5K": 5000, "10K": 10000, HM: 21097.5, M: 42195 };
 const MAX_GROUP = 25; // larger groups are common names; too risky to pair up blindly
@@ -173,6 +173,7 @@ export async function runDedupe({ dryRun = false, budgetMs = 240_000, sample = 4
     .sort((x, y) => rank[x.p.kind] - rank[y.p.kind]);
 
   const touched = new Set<string>();
+  const planned: MergeInput[] = [];
   for (const { p, v } of judged) {
     if (!v.merge) {
       if (v.maybe) {
@@ -185,11 +186,6 @@ export async function runDedupe({ dryRun = false, budgetMs = 240_000, sample = 4
     }
     // a profile changed earlier in this run is re-judged with its combined history next run
     if (touched.has(p.a) || touched.has(p.b)) continue;
-    if (!dryRun && Date.now() - started > budgetMs) {
-      report.stoppedEarly = true;
-      break;
-    }
-
     const A = profiles.get(p.a)!, B = profiles.get(p.b)!;
     // keep the profile with more results (stable links); show the better-written name
     const [kept, removed] = A.results >= B.results ? [A, B] : [B, A];
@@ -210,16 +206,23 @@ export async function runDedupe({ dryRun = false, budgetMs = 240_000, sample = 4
     touched.add(p.b);
     if (report.examples.filter((e) => e.kind === p.kind).length < sample) report.examples.push({ kept: name, removed: best === kept ? removed.name : kept.name, kind: p.kind, reasons: v.reasons });
 
-    if (dryRun) {
-      report.wouldMerge++;
-      continue;
+    if (dryRun) report.wouldMerge++;
+    else planned.push({ keptId: kept.id, removedId: removed.id, name, norm, kind: p.kind, reasons: v.reasons });
+  }
+
+  // one round trip per batch: the database does each merge in its own function call
+  for (const batch of chunks(planned, 50)) {
+    if (Date.now() - started > budgetMs) {
+      report.stoppedEarly = true;
+      break;
     }
     try {
-      const ok = await mergeAthletes({ keptId: kept.id, removedId: removed.id, name, norm, kind: p.kind, reasons: v.reasons });
-      if (ok) report.merged++;
+      const done = await mergeMany(batch);
+      report.merged += done.filter(Boolean).length;
+      report.failed += done.filter((x) => !x).length;
     } catch (e) {
-      report.failed++;
-      console.error("[dedupe] merge failed", kept.id, removed.id, e);
+      report.failed += batch.length;
+      console.error("[dedupe] merge batch failed", e);
     }
   }
   return report;

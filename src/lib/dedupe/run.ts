@@ -129,10 +129,17 @@ async function loadProfiles(rows: Row[]): Promise<Map<string, Profile>> {
 }
 
 /** Readability of a written name: Norwegian letters and accents count for it, sloppy punctuation against. */
+function messiness(name: string) {
+  return (
+    (name.match(/[?|_<>´`]|&#?\w+;|\.\S|\s-|-\s|\/|,|\s{2,}|\d|\.$|^[A-ZÆØÅa-zæøå]\.?\s/g) ?? []).length +
+    // words in capitals ("HANSEN Ole")
+    (name.match(/\b[A-ZÆØÅ]{2,}\b/g) ?? []).length
+  );
+}
+
 function tidiness(name: string) {
   const accents = (name.normalize("NFD").match(/[\u0300-\u036f]/g) ?? []).length + (name.match(/[æøåÆØÅ]/g) ?? []).length;
-  const mess = (name.match(/\?|\.\S|\s-|-\s|\/|\s{2,}|^[^a-zæøå]*$/g) ?? []).length;
-  return accents - 2 * mess;
+  return accents - 2 * messiness(name);
 }
 
 export async function runDedupe({ dryRun = false, budgetMs = 240_000, sample = 40 } = {}): Promise<DedupeReport> {
@@ -193,7 +200,7 @@ export async function runDedupe({ dryRun = false, budgetMs = 240_000, sample = 4
           ? // "Løchen" over "Lochen", "R. Davies" over "R.Davies"
             (tidiness(A.name) === tidiness(B.name) ? kept : tidiness(A.name) > tidiness(B.name) ? A : B)
           : (() => {
-            const d = orderScore(A.name, stats) - orderScore(B.name, stats);
+            const d = orderScore(A.name, stats) - 0.5 * messiness(A.name) - (orderScore(B.name, stats) - 0.5 * messiness(B.name));
             return Math.abs(d) > 0.05 ? (d > 0 ? A : B) : kept;
           })();
     const name = prettyName(best.name);

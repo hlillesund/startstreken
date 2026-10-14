@@ -4,6 +4,54 @@ import { prisma } from "@/lib/prisma";
 let ready: Promise<void> | null = null;
 
 /**
+ * One merge as a database function, so a batch of merges is a single round trip.
+ * Lives in a private schema (not exposed by Supabase's REST API) and only the
+ * owner may run it. A failing merge is rolled back on its own and returns false.
+ */
+const MERGE_FUNCTION = `
+CREATE OR REPLACE FUNCTION ss_private.merge_athlete(p_kept uuid, p_removed uuid, p_name text, p_norm text, p_kind text, p_reasons jsonb)
+RETURNS boolean LANGUAGE plpgsql AS $fn$
+DECLARE
+  k public.athletes%ROWTYPE;
+  r public.athletes%ROWTYPE;
+  res uuid[];
+  ids uuid[];
+BEGIN
+  SELECT * INTO k FROM public.athletes WHERE id = p_kept FOR UPDATE;
+  SELECT * INTO r FROM public.athletes WHERE id = p_removed FOR UPDATE;
+  IF k.id IS NULL OR r.id IS NULL THEN RETURN false; END IF;
+
+  WITH u AS (UPDATE public.results SET athlete_id = p_kept WHERE athlete_id = p_removed RETURNING id)
+  SELECT coalesce(array_agg(id), '{}') INTO res FROM u;
+  WITH u AS (UPDATE public.athlete_identities SET athlete_id = p_kept WHERE athlete_id = p_removed RETURNING id)
+  SELECT coalesce(array_agg(id), '{}') INTO ids FROM u;
+  UPDATE public.merge_suggestions SET candidate_athlete_id = p_kept WHERE candidate_athlete_id = p_removed;
+  UPDATE public.athlete_aliases SET athlete_id = p_kept WHERE athlete_id = p_removed;
+
+  INSERT INTO public.athlete_merges (kept_id, removed_id, kept_name_before, kept_norm_before, removed_name, removed_norm,
+    removed_gender, removed_birth_year, kept_gender_before, kept_birth_before, kind, reasons, result_ids, identity_ids)
+  VALUES (p_kept, p_removed, k.display_name, k.display_name_norm, r.display_name, r.display_name_norm,
+    r.gender, r.birth_year, k.gender, k.birth_year, p_kind, p_reasons, res, ids);
+
+  DELETE FROM public.athletes WHERE id = p_removed;
+  UPDATE public.athletes
+  SET display_name = p_name, display_name_norm = p_norm,
+      gender = coalesce(gender, r.gender), birth_year = coalesce(birth_year, r.birth_year)
+  WHERE id = p_kept;
+
+  -- both spellings keep pointing here for future imports
+  INSERT INTO public.athlete_aliases (name_norm, athlete_id)
+  SELECT n, p_kept FROM unnest(ARRAY[k.display_name_norm, r.display_name_norm]) AS n WHERE n <> p_norm
+  ON CONFLICT (name_norm) DO UPDATE SET athlete_id = EXCLUDED.athlete_id;
+  DELETE FROM public.athlete_aliases WHERE name_norm = p_norm;
+  RETURN true;
+EXCEPTION WHEN others THEN
+  RAISE WARNING 'merge % into % failed: %', p_removed, p_kept, SQLERRM;
+  RETURN false;
+END
+$fn$`;
+
+/**
  * Creates the dedupe tables on first use (the schema is managed by hand in
  * Supabase, so this keeps deploys free of manual steps).
  *   athlete_aliases: other spellings of a name → athlete, used by the importers
@@ -49,6 +97,10 @@ export function ensureDedupeTables() {
       )`);
     // Supabase exposes the public schema over its REST API; with RLS on and no
     // policies, only the server's own connection (the table owner) can use these.
+    await prisma.$executeRawUnsafe(`CREATE SCHEMA IF NOT EXISTS ss_private`);
+    await prisma.$executeRawUnsafe(MERGE_FUNCTION);
+    await prisma.$executeRawUnsafe(`REVOKE ALL ON SCHEMA ss_private FROM PUBLIC`);
+    await prisma.$executeRawUnsafe(`REVOKE ALL ON FUNCTION ss_private.merge_athlete(uuid, uuid, text, text, text, jsonb) FROM PUBLIC`);
     const open = await prisma.$queryRaw<{ relname: string }[]>`
       SELECT relname FROM pg_class
       WHERE relnamespace = 'public'::regnamespace AND NOT relrowsecurity
@@ -74,6 +126,21 @@ export type MergeInput = {
   kind: string;
   reasons: string[];
 };
+
+/** Runs a batch of merges in one statement; each succeeds or fails on its own. */
+export async function mergeMany(batch: MergeInput[]): Promise<boolean[]> {
+  if (batch.length === 0) return [];
+  await ensureDedupeTables();
+  const rows = await prisma.$queryRaw<{ ok: boolean }[]>`
+    SELECT ss_private.merge_athlete(t.k, t.r, t.n, t.nm, t.kind, t.reasons::jsonb) AS ok
+    FROM unnest(
+      ${batch.map((m) => m.keptId)}::uuid[], ${batch.map((m) => m.removedId)}::uuid[],
+      ${batch.map((m) => m.name)}::text[], ${batch.map((m) => m.norm)}::text[],
+      ${batch.map((m) => m.kind)}::text[], ${batch.map((m) => JSON.stringify(m.reasons))}::text[]
+    ) WITH ORDINALITY AS t(k, r, n, nm, kind, reasons, i)
+    ORDER BY t.i`;
+  return rows.map((r) => r.ok);
+}
 
 /** Moves everything from `removedId` to `keptId` and deletes it. Returns false if either is gone. */
 export async function mergeAthletes(m: MergeInput): Promise<boolean> {

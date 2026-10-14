@@ -12,9 +12,11 @@ export const maxDuration = 300;
  * Protected by CRON_SECRET or an admin login (see src/proxy.ts).
  */
 export async function GET(req: Request) {
-  const dryRun = new URL(req.url).searchParams.get("dry") === "1";
+  const q = new URL(req.url).searchParams;
+  const dryRun = q.get("dry") === "1";
+  const sample = Math.min(500, Math.max(1, Number(q.get("sample")) || 40));
   try {
-    const report = await runDedupe({ dryRun, budgetMs: Number(process.env.DEDUPE_BUDGET_MS) || 240_000 });
+    const report = await runDedupe({ dryRun, sample, budgetMs: Number(process.env.DEDUPE_BUDGET_MS) || 240_000 });
     if (report.merged > 0) {
       try {
         revalidateTag(SEASON_TAG, "max");

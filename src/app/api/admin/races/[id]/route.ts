@@ -46,6 +46,6 @@ export async function PATCH(
     }
   }
 
-  invalidateLop();
+  await invalidateLop();
   return NextResponse.json({ ok: true, resultsUpdated });
 }

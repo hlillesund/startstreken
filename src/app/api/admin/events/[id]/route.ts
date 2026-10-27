@@ -79,6 +79,6 @@ export async function PATCH(
   });
 
   // Name, date and series decide how events group into løp.
-  invalidateLop();
+  await invalidateLop();
   return NextResponse.json({ ok: true, id: updated.id });
 }

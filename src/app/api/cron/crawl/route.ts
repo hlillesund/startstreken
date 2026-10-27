@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { runCrawl } from "@/lib/import/crawler";
 
 export const dynamic = "force-dynamic";
-export const maxDuration = 300;
+export const maxDuration = 180;
 
 /**
  * Daily crawl (see vercel.json): discovers new events from the last days at every
@@ -10,8 +10,9 @@ export const maxDuration = 300;
  * up by the next run. Protected by CRON_SECRET (see src/proxy.ts).
  */
 export async function GET() {
-  const budgetMs = Number(process.env.CRAWL_BUDGET_MS) || 240_000;
-  const lookbackDays = Number(process.env.CRAWL_LOOKBACK_DAYS) || 10;
+  // kept short: function time is what the Vercel plan pays for; leftovers wait for the next night
+  const budgetMs = Number(process.env.CRAWL_BUDGET_MS) || 120_000;
+  const lookbackDays = Number(process.env.CRAWL_LOOKBACK_DAYS) || 4;
   try {
     const result = await runCrawl({ trigger: "cron", budgetMs, lookbackDays });
     return NextResponse.json({ ok: true, ...result });

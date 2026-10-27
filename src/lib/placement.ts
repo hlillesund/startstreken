@@ -1,70 +1,10 @@
 // «Hvor havner jeg?»: where a given time places in this season's field.
-import { unstable_cache } from "next/cache";
+// Counted in the stored season bests and biggest races (lib/season-store.ts),
+// so each request is a few small indexed queries and nothing large is cached.
 import { prisma } from "@/lib/prisma";
-import { SEASON_TAG, getField, type Field, type SeasonCategory } from "@/lib/season";
+import type { SeasonCategory } from "@/lib/season";
 import { ageClassFor, birthRange } from "@/lib/age-class";
-
-const TTL = 1800;
-
-function yearRange(year: number) {
-  return { from: new Date(Date.UTC(year, 0, 1)), to: new Date(Date.UTC(year + 1, 0, 1)) };
-}
-
-type BigRace = { event_id: string; race_id: string; name: string; date: string | null; location: string | null; times: number[] };
-
-/** The season's biggest races on a distance, with every finishing time (sorted). */
-async function loadBigRaces(category: SeasonCategory, year: number): Promise<BigRace[]> {
-  const { from, to } = yearRange(year);
-  const rows = await prisma.$queryRaw<{ event_id: string; race_id: string; name: string; start_date: Date | null; location: string | null; times: number[] }[]>`
-    WITH big AS (
-      SELECT ra.id AS race_id, COUNT(*) AS n
-      FROM results r
-      JOIN races ra ON ra.id = r.race_id
-      JOIN events e ON e.id = ra.event_id
-      WHERE r.distance_category = ${category}
-        AND NOT (r.raw ? 'ArrangementUID')
-        AND r.time_ms > 0
-        AND e.start_date >= ${from}
-        AND e.start_date < ${to}
-      GROUP BY ra.id
-      ORDER BY n DESC
-      LIMIT 6
-    )
-    SELECT e.id::text AS event_id, ra.id::text AS race_id, e.name, e.start_date, e.location,
-           array_agg(r.time_ms ORDER BY r.time_ms) AS times
-    FROM big
-    JOIN races ra ON ra.id = big.race_id
-    JOIN events e ON e.id = ra.event_id
-    JOIN results r ON r.race_id = ra.id AND r.time_ms > 0 AND NOT (r.raw ? 'ArrangementUID')
-    GROUP BY e.id, ra.id, e.name, e.start_date, e.location, big.n
-    ORDER BY big.n DESC
-  `;
-  return rows.map((r) => ({
-    event_id: r.event_id,
-    race_id: r.race_id,
-    name: r.name,
-    date: r.start_date ? r.start_date.toISOString().slice(0, 10) : null,
-    location: r.location,
-    times: r.times.map(Number),
-  }));
-}
-
-const getBigRaces = unstable_cache(loadBigRaces, ["big-races-v1"], { revalidate: TTL, tags: [SEASON_TAG] });
-
-function countBelow(sorted: number[], v: number) {
-  let lo = 0, hi = sorted.length;
-  while (lo < hi) {
-    const mid = (lo + hi) >> 1;
-    if (sorted[mid] < v) lo = mid + 1;
-    else hi = mid;
-  }
-  return lo;
-}
-
-function merge(a: Field, b: Field): Field {
-  const idx = [...a.t.map((t, i) => ({ t, b: a.b[i] })), ...b.t.map((t, i) => ({ t, b: b.b[i] }))].sort((x, y) => x.t - y.t);
-  return { t: idx.map((x) => x.t), b: idx.map((x) => x.b) };
-}
+import { ensureFresh } from "@/lib/lop/snapshot";
 
 export type Placement = {
   year: number;
@@ -75,31 +15,55 @@ export type Placement = {
 
 const BINS = 28;
 
+type FieldStats = { n: number; faster: number; p01: number | null; p10: number | null; p25: number | null; p50: number | null; p99: number | null };
+
+async function fieldStats(cat: SeasonCategory, year: number, gender: "M" | "F" | "A", timeMs: number): Promise<FieldStats> {
+  const [row] = await prisma.$queryRaw<FieldStats[]>`
+    SELECT COUNT(*)::int AS n,
+      COUNT(*) FILTER (WHERE best < ${timeMs})::int AS faster,
+      percentile_disc(0.01) WITHIN GROUP (ORDER BY best) AS p01,
+      percentile_disc(0.10) WITHIN GROUP (ORDER BY best) AS p10,
+      percentile_disc(0.25) WITHIN GROUP (ORDER BY best) AS p25,
+      percentile_disc(0.50) WITHIN GROUP (ORDER BY best) AS p50,
+      percentile_disc(0.99) WITHIN GROUP (ORDER BY best) AS p99
+    FROM ss_private.season_best
+    WHERE year = ${year} AND cat = ${cat} AND (${gender} = 'A' OR gender = ${gender})`;
+  return row;
+}
+
 export async function getPlacement(category: SeasonCategory, timeMs: number, gender: "M" | "F" | "A", birthYear: number | null, year: number): Promise<Placement> {
+  await ensureFresh();
+
   // early in the season there is too little to compare with, so use last year
   let fieldYear = year;
-  let field = await loadFieldFor(category, fieldYear, gender);
-  if (field.t.length < 30) {
-    const prev = await loadFieldFor(category, year - 1, gender);
-    if (prev.t.length > field.t.length) {
-      field = prev;
+  let stats = await fieldStats(category, year, gender, timeMs);
+  if (stats.n < 30) {
+    const prev = await fieldStats(category, year - 1, gender, timeMs);
+    if (prev.n > stats.n) {
+      stats = prev;
       fieldYear = year - 1;
     }
   }
 
   let national: Placement["national"] = null;
-  if (field.t.length > 0) {
-    const n = field.t.length;
-    const faster = countBelow(field.t, timeMs);
+  if (stats.n > 0) {
     // histogram between the 1st and 99th percentile, so outliers don't flatten it
-    const min = field.t[Math.floor(n * 0.01)];
-    const max = field.t[Math.min(n - 1, Math.floor(n * 0.99))];
+    const min = Number(stats.p01), max = Number(stats.p99);
     const span = Math.max(1, max - min);
+    const bins = await prisma.$queryRaw<{ b: number; n: number }[]>`
+      SELECT LEAST(${BINS - 1}, GREATEST(0, floor((best - ${min})::float8 / ${span} * ${BINS})::int)) AS b, COUNT(*)::int AS n
+      FROM ss_private.season_best
+      WHERE year = ${fieldYear} AND cat = ${category} AND (${gender} = 'A' OR gender = ${gender})
+      GROUP BY 1`;
     const histogram = new Array(BINS).fill(0);
-    for (const t of field.t) histogram[Math.max(0, Math.min(BINS - 1, Math.floor(((t - min) / span) * BINS)))]++;
+    for (const r of bins) histogram[r.b] = r.n;
     const bin = Math.max(0, Math.min(BINS - 1, Math.floor(((timeMs - min) / span) * BINS)));
-    const marks = [10, 25, 50].map((p) => ({ p, t: field.t[Math.min(n - 1, Math.floor((n * p) / 100))] }));
-    national = { rank: faster + 1, total: n + 1, beaten: (n - faster) / (n + 1), histogram, bin, min, max, marks };
+    const marks = [
+      { p: 10, t: Number(stats.p10) },
+      { p: 25, t: Number(stats.p25) },
+      { p: 50, t: Number(stats.p50) },
+    ];
+    national = { rank: stats.faster + 1, total: stats.n + 1, beaten: (stats.n - stats.faster) / (stats.n + 1), histogram, bin, min, max, marks };
   }
 
   let ageClass: Placement["ageClass"] = null;
@@ -107,33 +71,30 @@ export async function getPlacement(category: SeasonCategory, timeMs: number, gen
     const cls = ageClassFor(birthYear, gender, fieldYear);
     if (cls) {
       const { from, to } = birthRange(cls, fieldYear);
-      let faster = 0, total = 0;
-      field.t.forEach((t, i) => {
-        const b = field.b[i];
-        if (b == null || b < from || b > to) return;
-        total++;
-        if (t < timeMs) faster++;
-      });
-      if (total > 0) ageClass = { label: cls.label, rank: faster + 1, total: total + 1, beaten: (total - faster) / (total + 1) };
+      const [c] = await prisma.$queryRaw<{ n: number; faster: number }[]>`
+        SELECT COUNT(*)::int AS n, COUNT(*) FILTER (WHERE best < ${timeMs})::int AS faster
+        FROM ss_private.season_best
+        WHERE year = ${fieldYear} AND cat = ${category} AND gender = ${gender} AND birth_year BETWEEN ${from} AND ${to}`;
+      if (c.n > 0) ageClass = { label: cls.label, rank: c.faster + 1, total: c.n + 1, beaten: (c.n - c.faster) / (c.n + 1) };
     }
   }
 
-  const big = await getBigRaces(category, fieldYear);
+  // the season's biggest races: finishers faster than the time, per race (index on race_id, time_ms)
+  const big = await prisma.$queryRaw<{ race_id: string; event_id: string; name: string; date: Date | null; location: string | null; finishers: number; faster: number }[]>`
+    SELECT b.race_id::text, b.event_id::text, b.name, b.date, b.location, b.finishers,
+      (SELECT COUNT(*) FROM results r WHERE r.race_id = b.race_id AND r.time_ms > 0 AND r.time_ms < ${timeMs} AND NOT (r.raw ? 'ArrangementUID'))::int AS faster
+    FROM ss_private.season_big_races b
+    WHERE b.year = ${fieldYear} AND b.cat = ${category}
+    ORDER BY b.pos`;
   const races = big.map((r) => ({
     event_id: r.event_id,
     race_id: r.race_id,
     name: r.name,
-    date: r.date,
+    date: r.date ? r.date.toISOString().slice(0, 10) : null,
     location: r.location,
-    rank: countBelow(r.times, timeMs) + 1,
-    total: r.times.length + 1,
+    rank: r.faster + 1,
+    total: r.finishers + 1,
   }));
 
   return { year: fieldYear, national, ageClass, races };
-}
-
-async function loadFieldFor(category: SeasonCategory, year: number, gender: "M" | "F" | "A"): Promise<Field> {
-  if (gender !== "A") return getField(category, year, gender);
-  const [m, f] = await Promise.all([getField(category, year, "M"), getField(category, year, "F")]);
-  return merge(m, f);
 }

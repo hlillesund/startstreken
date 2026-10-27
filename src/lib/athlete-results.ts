@@ -3,7 +3,7 @@ import { revalidateTag, unstable_cache } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import type { AthleteResultRow } from "@/components/utovere/types";
 
-const TTL = 600; // seconds
+const TTL = 6 * 3600; // seconds; cleared when the athlete's EQ history brings new results
 
 export function athleteTag(id: string) {
   return `athlete:${id}`;

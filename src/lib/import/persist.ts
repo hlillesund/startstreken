@@ -225,7 +225,7 @@ export async function persistEvent(ev: NormalizedEvent, override: ImportOverride
     summaryRaces.push({ id: raceId, sourceRaceId: race.sourceRaceId, name: raceName, category, distanceM, results: data.length });
   }
 
-  touchLop();
+  await touchLop();
   return {
     eventId: event.id,
     sourceEventId: ev.sourceEventId,

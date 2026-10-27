@@ -3,8 +3,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
 import { getClub } from "@/lib/clubs";
-import { MAIN_DISTANCES } from "@/components/utovere/utils";
-import ClubView, { type ClubTop } from "./ClubView";
+import ClubView from "./ClubView";
 
 export const dynamic = "force-dynamic";
 
@@ -24,7 +23,7 @@ export async function generateMetadata({ params, searchParams }: { params: Promi
   if (!club) return { title: "Klubb – Startstreken" };
   return {
     title: `${club.name} ${year} – Startstreken`,
-    description: `${club.members.length} løpere fra ${club.name} har resultater i ${year}. Se klubbens raskeste, de mest aktive og siste resultater.`,
+    description: `${club.runners} løpere fra ${club.name} har resultater i ${year}. Se klubbens raskeste, de mest aktive og siste resultater.`,
   };
 }
 
@@ -67,21 +66,6 @@ export default async function ClubPage({ params, searchParams }: { params: Promi
     );
   }
 
-  // the fastest five per distance and gender
-  const top: ClubTop = {};
-  for (const d of MAIN_DISTANCES) {
-    for (const g of ["F", "M"] as const) {
-      const list = club.members
-        .filter((m) => m.gender === g && m.best[d.key])
-        .map((m) => ({ athlete_id: m.athlete_id, display_name: m.display_name, birth_year: m.birth_year, ...m.best[d.key]! }))
-        .sort((a, b) => a.t - b.t)
-        .slice(0, 5);
-      (top[d.key] ??= { F: [], M: [] })[g] = list;
-    }
-  }
-
-  const women = club.members.filter((m) => m.gender === "F").length;
-  const men = club.members.filter((m) => m.gender === "M").length;
   const [first, ...rest] = club.name.split(" ");
 
   return (
@@ -101,13 +85,13 @@ export default async function ClubPage({ params, searchParams }: { params: Promi
 
         <ClubView
           year={year}
-          runners={club.members.length}
-          women={women}
-          men={men}
+          runners={club.runners}
+          women={club.women}
+          men={club.men}
           races={club.races}
-          results={club.members.reduce((s, m) => s + m.races, 0)}
-          top={top}
-          members={club.members.map((m) => ({ athlete_id: m.athlete_id, display_name: m.display_name, birth_year: m.birth_year, races: m.races }))}
+          results={club.results}
+          top={club.top}
+          members={club.members}
           recent={club.recent}
         />
       </div>

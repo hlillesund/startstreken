@@ -5,7 +5,8 @@ import { unstable_cache } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { SEASON_TAG } from "@/lib/season";
 
-const TTL = 1800;
+const TTL = 6 * 3600; // seconds; refreshed sooner after imports (the season tag)
+const MEMBERS_KEPT = 300; // most active members stored for the page; counts and top lists use all
 
 /** Placeholders people type when they have no club. */
 const NOT_CLUBS = ["ingen", "ingen-klubb", "uten-klubb", "ikke-medlem", "privat", "ukjent", "none", "no-club", "n-a", "na", "x", "mosjonist"];
@@ -119,12 +120,21 @@ export type ClubResult = {
   rank_overall: number | null;
 };
 
+export type ClubTopRow = { athlete_id: string; display_name: string; birth_year: number | null; t: number; event: string; date: string | null };
+
 export type ClubDetail = {
   slug: string;
   name: string;
   year: number;
   races: number;
-  members: ClubMember[];
+  runners: number;
+  women: number;
+  men: number;
+  results: number;
+  /** The fastest five per distance and gender. */
+  top: Record<string, { F: ClubTopRow[]; M: ClubTopRow[] }>;
+  /** The most active members (at most MEMBERS_KEPT, to keep the cache entry small). */
+  members: { athlete_id: string; display_name: string; birth_year: number | null; races: number }[];
   recent: ClubResult[];
 };
 
@@ -183,12 +193,32 @@ async function loadClub(slug: string, year: number): Promise<ClubDetail | null> 
     if (r.cat && (!m.best[r.cat] || t < m.best[r.cat]!.t)) m.best[r.cat] = { t, event: r.event_name, date: iso(r.start_date) };
   }
 
+  const all = [...members.values()];
+  const top: ClubDetail["top"] = {};
+  for (const cat of ["5K", "10K", "HM", "M"]) {
+    for (const g of ["F", "M"] as const) {
+      (top[cat] ??= { F: [], M: [] })[g] = all
+        .filter((m) => m.gender === g && m.best[cat])
+        .map((m) => ({ athlete_id: m.athlete_id, display_name: m.display_name, birth_year: m.birth_year, ...m.best[cat]! }))
+        .sort((a, b) => a.t - b.t)
+        .slice(0, 5);
+    }
+  }
+
   return {
     slug,
     name: [...names.entries()].sort((a, b) => b[1] - a[1])[0][0],
     year,
     races: events.size,
-    members: [...members.values()].sort((a, b) => b.races - a.races || a.display_name.localeCompare(b.display_name, "nb")),
+    runners: all.length,
+    women: all.filter((m) => m.gender === "F").length,
+    men: all.filter((m) => m.gender === "M").length,
+    results: rows.length,
+    top,
+    members: all
+      .sort((a, b) => b.races - a.races || a.display_name.localeCompare(b.display_name, "nb"))
+      .slice(0, MEMBERS_KEPT)
+      .map(({ athlete_id, display_name, birth_year, races }) => ({ athlete_id, display_name, birth_year, races })),
     recent: rows.slice(0, 12).map((r) => ({
       athlete_id: r.athlete_id,
       display_name: r.display_name,
@@ -205,4 +235,4 @@ async function loadClub(slug: string, year: number): Promise<ClubDetail | null> 
 }
 
 /** Everything the club page shows for one season. */
-export const getClub = unstable_cache(loadClub, ["club-v1"], { revalidate: TTL, tags: [SEASON_TAG] });
+export const getClub = unstable_cache(loadClub, ["club-v2"], { revalidate: TTL, tags: [SEASON_TAG] });

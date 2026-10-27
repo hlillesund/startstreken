@@ -6,9 +6,10 @@
 import { revalidateTag, unstable_cache } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { ageClassFor, birthRange } from "@/lib/age-class";
+import { ensureFresh } from "@/lib/lop/snapshot";
 
 export const SEASON_TAG = "season";
-const SEASON_TTL = 1800; // seconds
+const SEASON_TTL = 6 * 3600; // seconds; refreshed sooner after imports (the snapshot rebuild revalidates the tag)
 
 export const SEASON_CATEGORIES = ["5K", "10K", "HM", "M"] as const;
 export type SeasonCategory = (typeof SEASON_CATEGORIES)[number];
@@ -127,109 +128,22 @@ export async function getLeaderboards(year: number, limit = 5): Promise<Leaderbo
   return out;
 }
 
-/* ── The whole field ───────────────────────────────────────────────────── */
-
-/**
- * Every athlete's season best for one distance and gender, fastest first, with
- * birth year alongside (parallel arrays keep the cache entry small).
- * Used for age-class ranks and «Hvor havner jeg?».
- */
-export type Field = { t: number[]; b: (number | null)[] };
-
-async function loadField(category: SeasonCategory, year: number, gender: "M" | "F"): Promise<Field> {
-  const { from, to } = yearRange(year);
-  const rows = await prisma.$queryRaw<{ best: number; birth_year: number | null }[]>`
-    SELECT MIN(r.time_ms)::int AS best, a.birth_year
-    FROM results r
-    JOIN races ra ON ra.id = r.race_id
-    JOIN events e ON e.id = ra.event_id
-    JOIN athletes a ON a.id = r.athlete_id
-    WHERE r.distance_category = ${category}
-      AND NOT (r.raw ? 'ArrangementUID')
-      AND r.time_ms > 0
-      AND e.start_date >= ${from}
-      AND e.start_date < ${to}
-      AND a.gender = ${gender}
-    GROUP BY r.athlete_id, a.birth_year
-    ORDER BY best ASC
-  `;
-  return { t: rows.map((r) => Number(r.best)), b: rows.map((r) => r.birth_year) };
-}
-
-export const getField = unstable_cache(loadField, ["season-field-v1"], { revalidate: SEASON_TTL, tags: [SEASON_TAG] });
-
-/* ── National ranks ────────────────────────────────────────────────────── */
-
-/** Per distance: every distinct season-best time (sorted) and the number of ranked athletes. */
-type SeasonTimes = Record<string, { times: number[]; total: number }>;
-
-async function loadSeasonTimes(year: number): Promise<SeasonTimes> {
-  const { from, to } = yearRange(year);
-  // one pass over the year's results for all distances
-  const rows = await prisma.$queryRaw<{ cat: string; best: number }[]>`
-    SELECT r.distance_category AS cat, MIN(r.time_ms)::int AS best
-    FROM results r
-    JOIN races ra ON ra.id = r.race_id
-    JOIN events e ON e.id = ra.event_id
-    WHERE r.distance_category IN ('5K', '10K', 'HM', 'M')
-      AND NOT (r.raw ? 'ArrangementUID')
-      AND r.time_ms > 0
-      AND e.start_date >= ${from}
-      AND e.start_date < ${to}
-    GROUP BY r.athlete_id, r.distance_category
-  `;
-  const acc: Record<string, { set: Set<number>; total: number }> = {};
-  for (const r of rows) {
-    const a = (acc[r.cat] ??= { set: new Set(), total: 0 });
-    a.set.add(Number(r.best));
-    a.total++;
-  }
-  const out: SeasonTimes = {};
-  for (const [cat, a] of Object.entries(acc)) out[cat] = { times: [...a.set].sort((x, y) => x - y), total: a.total };
-  return out;
-}
-
-const getSeasonTimes = unstable_cache(loadSeasonTimes, ["season-times-v1"], { revalidate: SEASON_TTL, tags: [SEASON_TAG] });
-
-/** Number of entries in a sorted array that are strictly less than `v`. */
-function countBelow(sorted: number[], v: number) {
-  let lo = 0, hi = sorted.length;
-  while (lo < hi) {
-    const mid = (lo + hi) >> 1;
-    if (sorted[mid] < v) lo = mid + 1;
-    else hi = mid;
-  }
-  return lo;
-}
+/* ── National and age-class ranks ──────────────────────────────────────── */
 
 export type ClassRank = { key: string; label: string; rank: number; total: number };
 export type AthleteRanks = Record<SeasonCategory, { rank: number; total: number; cls?: ClassRank } | null>;
 
-/** Rank within the athlete's age class (competition rank on season best). */
-async function classRank(cat: SeasonCategory, year: number, gender: "M" | "F", birthYear: number, best: number): Promise<ClassRank | null> {
-  const cls = ageClassFor(birthYear, gender, year);
-  if (!cls) return null;
-  const { from, to } = birthRange(cls, year);
-  const field = await getField(cat, year, gender);
-  let faster = 0, total = 0, self = false;
-  for (let i = 0; i < field.t.length; i++) {
-    const b = field.b[i];
-    if (b == null || b < from || b > to) continue;
-    total++;
-    if (field.t[i] < best) faster++;
-    else if (field.t[i] === best) self = true;
-  }
-  return { key: cls.key, label: cls.label, rank: faster + 1, total: self ? total : total + 1 };
-}
+type RankRow = { cat: string; rank: number; total: number; self: boolean; c_rank: number | null; c_total: number | null; c_self: boolean | null };
 
 /**
  * The athlete's national rank per distance for `year` (dense rank on season best,
- * same rules as the top lists). Only the athlete's own results are queried; the
- * rest comes from the cached season table.
+ * same rules as the top lists) and competition rank within the age class.
+ * Counted in the stored season bests (lib/season-store.ts); the athlete's own
+ * best comes straight from the results, so a brand-new result still ranks.
  */
 export async function getAthleteRanks(athleteId: string, year: number): Promise<AthleteRanks> {
   const { from, to } = yearRange(year);
-  const [mine, season, who] = await Promise.all([
+  const [mine, who] = await Promise.all([
     prisma.$queryRaw<{ cat: string; best: number }[]>`
       SELECT r.distance_category AS cat, MIN(r.time_ms)::int AS best
       FROM results r
@@ -243,30 +157,45 @@ export async function getAthleteRanks(athleteId: string, year: number): Promise<
         AND e.start_date < ${to}
       GROUP BY r.distance_category
     `,
-    getSeasonTimes(year),
     prisma.athletes.findUnique({ where: { id: athleteId }, select: { gender: true, birth_year: true } }),
   ]);
 
   const out = Object.fromEntries(SEASON_CATEGORIES.map((c) => [c, null])) as AthleteRanks;
-  for (const { cat, best } of mine) {
-    const s = season[cat];
-    if (!s || !isSeasonCategory(cat)) continue;
-    // A result newer than the cached table still gets a sensible rank
-    const below = countBelow(s.times, best);
-    const known = s.times[below] === best;
-    out[cat] = { rank: below + 1, total: known ? s.total : s.total + 1 };
-  }
+  const own = mine.filter((m) => isSeasonCategory(m.cat));
+  if (own.length === 0) return out;
 
+  await ensureFresh();
   const gender = who?.gender === "M" || who?.gender === "F" ? who.gender : null;
-  if (gender && who?.birth_year) {
-    await Promise.all(
-      mine.map(async ({ cat, best }) => {
-        const r = isSeasonCategory(cat) ? out[cat] : null;
-        if (!r) return;
-        const cls = await classRank(cat as SeasonCategory, year, gender, who.birth_year!, best);
-        if (cls) r.cls = cls;
-      })
-    );
+  const cls = gender && who?.birth_year ? ageClassFor(who.birth_year, gender, year) : null;
+  const range = cls ? birthRange(cls, year) : null;
+
+  const rows = await prisma.$queryRaw<RankRow[]>`
+    WITH mine AS (SELECT * FROM unnest(${own.map((m) => m.cat)}::text[], ${own.map((m) => Number(m.best))}::int[]) AS t(cat, best))
+    SELECT m.cat,
+      (SELECT COUNT(DISTINCT s.best) FROM ss_private.season_best s WHERE s.year = ${year} AND s.cat = m.cat AND s.best < m.best)::int + 1 AS rank,
+      (SELECT COUNT(*) FROM ss_private.season_best s WHERE s.year = ${year} AND s.cat = m.cat)::int AS total,
+      EXISTS (SELECT 1 FROM ss_private.season_best s WHERE s.year = ${year} AND s.cat = m.cat AND s.athlete_id = ${athleteId}::uuid) AS self,
+      CASE WHEN ${range ? 1 : 0}::int = 1 THEN (
+        SELECT COUNT(*) FROM ss_private.season_best s
+        WHERE s.year = ${year} AND s.cat = m.cat AND s.gender = ${gender} AND s.birth_year BETWEEN ${range?.from ?? 0}::int AND ${range?.to ?? 0}::int AND s.best < m.best
+      )::int + 1 END AS c_rank,
+      CASE WHEN ${range ? 1 : 0}::int = 1 THEN (
+        SELECT COUNT(*) FROM ss_private.season_best s
+        WHERE s.year = ${year} AND s.cat = m.cat AND s.gender = ${gender} AND s.birth_year BETWEEN ${range?.from ?? 0}::int AND ${range?.to ?? 0}::int
+      )::int END AS c_total,
+      CASE WHEN ${range ? 1 : 0}::int = 1 THEN EXISTS (
+        SELECT 1 FROM ss_private.season_best s
+        WHERE s.year = ${year} AND s.cat = m.cat AND s.athlete_id = ${athleteId}::uuid AND s.birth_year BETWEEN ${range?.from ?? 0}::int AND ${range?.to ?? 0}::int
+      ) END AS c_self
+    FROM mine m`;
+
+  for (const r of rows) {
+    if (!isSeasonCategory(r.cat) || r.total === 0) continue;
+    const entry: NonNullable<AthleteRanks[SeasonCategory]> = { rank: r.rank, total: r.self ? r.total : r.total + 1 };
+    if (cls && r.c_rank != null && r.c_total != null) {
+      entry.cls = { key: cls.key, label: cls.label, rank: r.c_rank, total: r.c_self ? r.c_total : r.c_total + 1 };
+    }
+    out[r.cat] = entry;
   }
   return out;
 }

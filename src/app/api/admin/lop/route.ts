@@ -145,7 +145,7 @@ export async function POST(req: NextRequest) {
           await prisma.events.updateMany({ where: { series_id: { in: ids } }, data: { series_id: null } });
           await prisma.event_series.deleteMany({ where: { id: { in: ids } } });
         }
-        invalidateLop();
+        await invalidateLop();
         return NextResponse.json({ ok: true, removed: ids.length });
       }
 
@@ -157,6 +157,6 @@ export async function POST(req: NextRequest) {
     return fail(e instanceof Error ? e.message : "Noe gikk galt", 500);
   }
 
-  invalidateLop();
+  await invalidateLop();
   return NextResponse.json({ ok: true });
 }

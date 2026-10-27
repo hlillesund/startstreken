@@ -1,5 +1,5 @@
-import { revalidateTag, unstable_cache } from "next/cache";
 import { prisma } from "@/lib/prisma";
+import { markLopDirty } from "./snapshot";
 import { cleanEventName, nameKey, slugFromParam } from "./names";
 
 /*
@@ -303,24 +303,20 @@ export function buildCourses(evs: LopEvent[]): Course[] {
     .sort((a, b) => (CAT_ORDER[a.cat] ?? 9) - (CAT_ORDER[b.cat] ?? 9) || b.n - a.n);
 }
 
-export const getLopIndex = unstable_cache(buildLopIndex, ["lop-index-v1"], { revalidate: 3600, tags: [LOP_TAG] });
+/**
+ * The full index, built fresh (admin only). It is too large for the data cache;
+ * public pages read the stored snapshot instead (see ./snapshot).
+ */
+export const getLopIndex = buildLopIndex;
 
-/** After admin changes: the next request rebuilds the index. */
-export function invalidateLop() {
-  try {
-    revalidateTag(LOP_TAG, { expire: 0 });
-  } catch {
-    // outside a request (scripts) — the index refreshes within the hour anyway
-  }
+/** After admin changes: the next page view rebuilds the snapshot. */
+export async function invalidateLop() {
+  await markLopDirty(true);
 }
 
-/** After imports: serve the old index while a fresh one is built. */
-export function touchLop() {
-  try {
-    revalidateTag(LOP_TAG, "max");
-  } catch {
-    // outside a request (scripts)
-  }
+/** After imports: the snapshot is rebuilt in the background, at most every few minutes. */
+export async function touchLop() {
+  await markLopDirty(false);
 }
 
 export function findGroup(index: LopIndex, param: string): LopGroup | null {

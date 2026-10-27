@@ -3,7 +3,7 @@ import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
 import { prisma } from "@/lib/prisma";
-import { findGroup, getLopIndex } from "@/lib/lop/index";
+import { getLopFor } from "@/lib/lop/snapshot";
 import EditionView from "./EditionView";
 import GroupView from "./GroupView";
 
@@ -15,16 +15,16 @@ export type LopSearch = { race?: string; d?: string; q?: string; g?: string; p?:
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 export async function generateMetadata({ params }: { params: Promise<Params> }): Promise<Metadata> {
-  const { id } = await params;
-  const index = await getLopIndex();
-  const ev = index.events[id];
+  const id = decodeURIComponent((await params).id);
+  const index = await getLopFor(id);
+  const ev = index?.events[id];
   if (ev) {
     return {
       title: `${ev.name} – resultater – Startstreken`,
       description: `Resultatliste, snittider og fordeling av sluttider for ${ev.name}.`,
     };
   }
-  const g = UUID.test(id) ? null : findGroup(index, decodeURIComponent(id));
+  const g = UUID.test(id) || !index ? null : index.groups[0];
   if (!g) return { title: "Løp – Startstreken" };
   return {
     title: `${g.name} – resultater og statistikk – Startstreken`,
@@ -35,14 +35,14 @@ export async function generateMetadata({ params }: { params: Promise<Params> }):
 export default async function LopDetailPage({ params, searchParams }: { params: Promise<Params>; searchParams: Promise<LopSearch> }) {
   const [{ id: raw }, sp] = await Promise.all([params, searchParams]);
   const id = decodeURIComponent(raw);
-  const index = await getLopIndex();
+  const index = await getLopFor(id);
 
   if (UUID.test(id)) {
-    if (index.events[id]) return <EditionView index={index} eventId={id} sp={sp} />;
+    if (index?.events[id]) return <EditionView index={index} eventId={id} sp={sp} />;
 
     // Links to a race (import log, older pages) → its edition.
     const race = await prisma.races.findUnique({ where: { id }, select: { event_id: true } });
-    if (race && index.events[race.event_id]) redirect(`/lop/${race.event_id}?race=${id}`);
+    if (race && (await getLopFor(race.event_id))?.events[race.event_id]) redirect(`/lop/${race.event_id}?race=${id}`);
 
     const event = await prisma.events.findUnique({ where: { id: race?.event_id ?? id }, select: { name: true } });
     if (!event) notFound();
@@ -61,8 +61,8 @@ export default async function LopDetailPage({ params, searchParams }: { params: 
     );
   }
 
-  const group = findGroup(index, id);
-  if (!group) notFound();
+  const group = index?.groups[0];
+  if (!index || !group) notFound();
   if (group.slug !== id) redirect(`/lop/${group.slug}${sp.d ? `?d=${encodeURIComponent(sp.d)}` : ""}`);
   return <GroupView index={index} group={group} sp={sp} />;
 }

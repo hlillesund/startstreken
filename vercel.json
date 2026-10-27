@@ -7,7 +7,7 @@
     },
     {
       "path": "/api/cron/dedupe",
-      "schedule": "30 4 * * *"
+      "schedule": "30 4 * * 1"
     }
   ]
 }
